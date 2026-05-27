@@ -15,14 +15,14 @@ Goal: run the full strategy logic over a year of historical 1-minute bars and lo
 | 1 | `indicators.py` | RSI(15), ADX/DI±(14), 9-EMA, VWAP, rolling 55-bar volume. Must match TradingView. | ✅ built + 13 unit tests pass. Final TradingView cross-check pending real data. |
 | 2 | `state.py` | `MarketState` + `StrikeState` (Decimal money). | ✅ built |
 | 3 | `alarms.py` | Sentinels A–E as pure functions + divergence helper. | ✅ built + tested |
-| 4 | `entry.py` | Bison (long) + Buffalo (short) entry phase checks. | ✅ built + tested (v1: full size, scale-in deferred) |
+| 4 | `entry.py` | Bison (long) + Buffalo (short) entry phase checks + scale-in (v2). | ✅ built + tested (full + scaled sizing, scale-in add) |
 | 5 | `risk.py` | Hard-stop sizing, ratchet math, circuit breaker, entry slippage. | ✅ built + tested |
 | 6 | `backtest.py` | Bar-replay engine: indicators→state→entry→alarms→stop→exit. Trade log + report. | ✅ built; runs on synthetic day, 28 tests green |
 | 7 | Data loader | `data.py`: synthetic session (offline) ✅ + yfinance real 1m (last ~7d) ✅. Alpaca/Polygon = Phase 2. | ✅ built |
 | — | **GATE** | Review expectancy with Julian + strategy author. **Go / no-go on Phase 2.** | ☐ |
 
-**v1 simplifications / open items to revisit before the gate:**
-- Scale-in + half-size sizing deferred (v1 takes full size on any valid signal).
+**Open items to revisit before the gate:**
+- ✅ Scale-in + half-size sizing now implemented (v2). Re-run after: still net negative on the tiny sample (exp ≈ −$60–62/trade).
 - Backtest fills are bar-close approximations (no live bid/ask, no gap slippage on stops).
 - **Finding:** Alarm D uses the SESSION peak 5m ADX (per the original spec). The overnight gap can inflate the opening 5m ADX, making Alarm D fire early. Real-data behavior TBD — relates to OPEN_QUESTIONS.md Q1 (worth raising with the author).
 - Indicator values not yet cross-checked against the author's TradingView charts (needs real data + author).

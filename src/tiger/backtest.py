@@ -197,6 +197,8 @@ def run_backtest(
         state.update_session_adx_peak(adx_5m if adx_5m is not None else 0.0)
         recent_adx_1m.append(_f(row["adx_1m"]) or 0.0)
         new_5m_completed = row["label5m"] != last_5m_label
+        new_nhod = prior_nhod is None or high > prior_nhod
+        new_nlod = prior_nlod is None or low < prior_nlod
 
         # ---------------- manage an open position ---------------- #
         if state.in_position:
@@ -205,7 +207,7 @@ def run_backtest(
             exited = _manage_position(
                 state, strike, ts, bar_time, row, close, high, low,
                 prev_close, rsi_1m, adx_5m, recent_adx_1m, new_5m_completed,
-                alarm_d_scope,
+                alarm_d_scope, new_nhod, new_nlod,
             )
             if exited:
                 if risk.circuit_breaker_tripped(state.realized_pnl):
@@ -253,9 +255,15 @@ def _try_entry(state, ts, bar_time, row, close, prior_nhod, prior_nlod, closes, 
         return
 
     fill = risk.entry_limit_price(signal.direction, Decimal(str(close)))
-    shares = risk.position_size(fill)
-    if shares <= 0:
+    full_shares = risk.position_size(fill)
+    if full_shares <= 0:
         return
+    # Full Strike takes 100%; Scaled Strike takes 50% now and may add the rest.
+    if signal.full_size:
+        shares, is_scaled, is_full = full_shares, False, True
+    else:
+        shares = max(full_shares // 2, 1)
+        is_scaled, is_full = True, False
     stop = risk.hard_stop_price(signal.direction, fill, shares)
     state.open_strike = StrikeState(
         strike_number=state.strikes_taken + 1,
@@ -264,6 +272,8 @@ def _try_entry(state, ts, bar_time, row, close, prior_nhod, prior_nlod, closes, 
         entry_price=fill,
         shares=shares,
         stop_price=stop,
+        is_scaled=is_scaled,
+        is_full_filled=is_full,
     )
     state.strikes_taken += 1
 
@@ -279,7 +289,7 @@ def _close_position(state, strike, ts, exit_price: Decimal, reason: ExitReason):
 
 def _manage_position(state, strike, ts, bar_time, row, close, high, low,
                      prev_close, rsi_1m, adx_5m, recent_adx_1m, new_5m_completed,
-                     alarm_d_scope="session") -> bool:
+                     alarm_d_scope="session", new_nhod=False, new_nlod=False) -> bool:
     """Run sentinels + stop + EOD flush for the open position. Returns True if exited."""
     d = strike.direction
 
@@ -319,6 +329,24 @@ def _manage_position(state, strike, ts, bar_time, row, close, high, low,
         reason = ExitReason.HARD_STOP if strike.stop_source == "hard" else ExitReason.RATCHET_STOP
         _close_position(state, strike, ts, stop, reason)
         return True
+
+    # Scale-in (Phase 5): add the second 50% of a Scaled Strike if it strengthens.
+    if strike.is_scaled and not strike.is_full_filled:
+        made_new_extreme = new_nhod if d is Direction.LONG else new_nlod
+        divergent = alarms.divergence(
+            d, close, rsi_1m if rsi_1m is not None else 50.0,
+            state.stored_peak_price, state.stored_peak_rsi,
+        )
+        if entry.scale_in_ok(d, _f(row["di_plus_1m"]), _f(row["di_minus_1m"]),
+                             made_new_extreme, divergent):
+            add_qty = strike.shares
+            fill2 = risk.entry_limit_price(d, Decimal(str(close)))
+            blended = risk.blended_entry_price(strike.entry_price, strike.shares, fill2, add_qty)
+            strike.entry_price = blended
+            strike.shares += add_qty
+            strike.is_full_filled = True
+            strike.stop_price = risk.hard_stop_price(d, blended, strike.shares)  # OPEN-Q4: recalc on full
+            strike.stop_source = "hard"
 
     # Ratchet alarms (C, E) — tighten the stop for future bars
     c = alarms.alarm_c_tiger_grip(recent_adx_1m)

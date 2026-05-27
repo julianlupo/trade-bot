@@ -10,9 +10,9 @@ Phases, in order (abort on first failure):
   3   Authority  — 5m DI(side) > 25 AND 5m ADX > 20 AND divergence == False
   3.5 Sizing     — DI(side) thresholds decide full vs scaled (see note)
 
-NOTE (v1 simplification): the full-vs-scaled SIZE split and the mid-trade
-scale-in add are deferred to v2. v1 requires 1m DI(side) > 25 to enter and
-takes FULL size. The "< 25 => do not enter" gate is preserved. See ROADMAP.md.
+Sizing (Phase 3.5): 1m DI(side) > 30 => Full Strike (100%); in [25, 30] =>
+Scaled Strike (50% starter, may add the second half via ``scale_in_ok``);
+< 25 => do not enter.
 """
 
 from __future__ import annotations
@@ -94,6 +94,24 @@ def sizing_ok(direction: Direction, di_plus_1m: float | None, di_minus_1m: float
     if di_side is None or di_side < DI_ENTRY_MIN:
         return False, False
     return True, di_side > DI_FULL_SIZE
+
+
+def scale_in_ok(
+    direction: Direction,
+    di_plus_1m: float | None,
+    di_minus_1m: float | None,
+    made_new_extreme: bool,
+    divergent: bool,
+) -> bool:
+    """Phase 5: add the second 50% of a Scaled Strike.
+
+    Long: 1m DI+ > 30 AND new NHOD set AND Alarm E == False.
+    Short: 1m DI- > 30 AND new NLOD set AND Alarm E == False.
+    """
+    if not made_new_extreme or divergent:
+        return False
+    di_side = di_plus_1m if direction is Direction.LONG else di_minus_1m
+    return di_side is not None and di_side > DI_FULL_SIZE
 
 
 def check_entry(

@@ -98,3 +98,20 @@ def test_sizing_thresholds():
     assert entry.sizing_ok(Direction.LONG, 35, None) == (True, True)   # >30 full
     assert entry.sizing_ok(Direction.LONG, 27, None) == (True, False)  # 25-30 scaled
     assert entry.sizing_ok(Direction.LONG, 20, None) == (False, False)  # <25 no entry
+
+
+def test_scale_in_ok():
+    # long: DI+>30 AND new high AND no divergence
+    assert entry.scale_in_ok(Direction.LONG, 32, None, made_new_extreme=True, divergent=False) is True
+    assert entry.scale_in_ok(Direction.LONG, 32, None, made_new_extreme=False, divergent=False) is False  # no new high
+    assert entry.scale_in_ok(Direction.LONG, 32, None, made_new_extreme=True, divergent=True) is False    # divergence blocks
+    assert entry.scale_in_ok(Direction.LONG, 28, None, made_new_extreme=True, divergent=False) is False   # DI+ not > 30
+    # short uses DI-
+    assert entry.scale_in_ok(Direction.SHORT, None, 31, made_new_extreme=True, divergent=False) is True
+
+
+def test_blended_entry_price():
+    # 100 sh @ 100 + 100 sh @ 104 -> 102
+    assert risk.blended_entry_price(Decimal("100"), 100, Decimal("104"), 100) == Decimal("102")
+    # weighted: 200 @ 100 + 100 @ 106 -> 102
+    assert risk.blended_entry_price(Decimal("100"), 200, Decimal("106"), 100) == Decimal("102")

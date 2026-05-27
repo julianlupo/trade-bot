@@ -72,6 +72,14 @@ def ratchet_stop(
     return min(existing_stop, proposed)
 
 
+def blended_entry_price(price1: Decimal, qty1: int, price2: Decimal, qty2: int) -> Decimal:
+    """Share-weighted average entry after a scale-in add."""
+    total = qty1 + qty2
+    if total <= 0:
+        raise ValueError("total shares must be positive")
+    return (price1 * qty1 + price2 * qty2) / total
+
+
 def circuit_breaker_tripped(
     realized_pnl: Decimal, limit: Decimal = DAILY_LOSS_LIMIT
 ) -> bool:
