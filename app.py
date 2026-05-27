@@ -13,7 +13,7 @@ from pathlib import Path
 import plotly.graph_objects as go
 import streamlit as st
 
-from tiger import data
+from tiger import batch, data
 from tiger.backtest import (
     load_and_run_yfinance,
     run_backtest,
@@ -111,7 +111,9 @@ def show_result(result, day_bars):
 st.title("🐯 Tiger Sovereign")
 st.caption("Intraday momentum trading bot — backtesting stage. Not trading real money.")
 
-tab_run, tab_status, tab_spec = st.tabs(["▶ Run a backtest", "📋 Project status", "📖 Strategy & open questions"])
+tab_run, tab_batch, tab_status, tab_spec = st.tabs(
+    ["▶ Run a backtest", "📈 Batch test (the edge)", "📋 Project status", "📖 Strategy & open questions"]
+)
 
 with tab_run:
     st.subheader("Test the strategy on a real recent day")
@@ -139,6 +141,83 @@ with tab_run:
             target = stock.index.normalize().unique()[-1]
             result = run_backtest(stock, qqq, "SYNTH")
             show_result(result, stock[stock.index.normalize() == target])
+
+with tab_batch:
+    st.subheader("Does the strategy actually make money?")
+    st.caption("Runs the strategy across every recent session for each ticker and totals it up. "
+               "This is the real test of edge — one day means nothing.")
+    tickers_raw = st.text_input(
+        "Tickers (comma-separated)", value="NVDA, TSLA, AMD, AAPL, META",
+        help="A few liquid momentum names. Each is run over its last ~5 sessions.",
+    )
+    if st.button("Run batch", type="primary"):
+        tickers = [t for t in tickers_raw.split(",") if t.strip()]
+        with st.spinner(f"Running {len(tickers)} tickers across their recent sessions…"):
+            try:
+                br = batch.run_batch(tickers)
+                stats = br.stats()
+                if br.skipped:
+                    st.warning(f"Couldn't load (likely rate-limited): {', '.join(br.skipped)}")
+
+                pf = stats["profit_factor"]
+                pf_txt = "∞" if pf == float("inf") else f"{pf:.2f}"
+                a, b, c, d = st.columns(4)
+                a.metric("Total P&L", f"${stats['total_pnl']:,.2f}")
+                b.metric("Expectancy / trade", f"${stats['expectancy']:,.2f}",
+                         help="Average $ per trade over the long run. The number that matters most.")
+                c.metric("Win rate", f"{stats['win_rate']:.0f}%")
+                d.metric("Profit factor", pf_txt,
+                         help="Gross winnings ÷ gross losses. Above 1.0 = profitable.")
+                e, f, g, h = st.columns(4)
+                e.metric("Trades", stats["trades"])
+                f.metric("Avg win", f"${stats['avg_win']:,.2f}")
+                g.metric("Avg loss", f"${stats['avg_loss']:,.2f}")
+                h.metric("Sessions", f"{stats['sessions_with_trades']}/{stats['sessions']} traded")
+
+                # verdict
+                exp = stats["expectancy"]
+                if stats["trades"] == 0:
+                    st.info("No trades fired across this batch.")
+                elif exp > 0:
+                    st.success(f"📈 Positive expectancy on this sample: +${exp:,.2f}/trade. "
+                               "Encouraging — but the free-data sample is tiny. Needs deeper history before trusting it.")
+                else:
+                    st.error(f"📉 Negative expectancy on this sample: ${exp:,.2f}/trade. "
+                             "On this slice it loses money. Worth investigating before going further.")
+
+                times, cum = br.equity_curve()
+                if times:
+                    eq = go.Figure(go.Scatter(x=times, y=cum, mode="lines+markers",
+                                              line=dict(color=ET_BLUE, width=2)))
+                    eq.add_hline(y=0, line_dash="dot", line_color="gray")
+                    eq.update_layout(height=340, margin=dict(t=10, b=10),
+                                     title="Equity curve (cumulative P&L by trade)")
+                    st.plotly_chart(eq, use_container_width=True)
+
+                if stats["exit_reasons"]:
+                    er = stats["exit_reasons"]
+                    bar = go.Figure(go.Bar(x=list(er.keys()), y=list(er.values()), marker_color=ET_BLUE))
+                    bar.update_layout(height=300, margin=dict(t=10, b=10),
+                                      title="How trades exited")
+                    st.plotly_chart(bar, use_container_width=True)
+
+                rows = br.trade_rows()
+                if rows:
+                    st.dataframe(
+                        [{
+                            "Ticker": r["ticker"], "Date": r["date"],
+                            "Dir": "▲" if r["direction"] == "long" else "▼",
+                            "Entry": f"{r['entry']:.2f}", "Exit": f"{r['exit']:.2f}",
+                            "Exit reason": r["exit_reason"].replace("_", " "),
+                            "P&L": f"${r['pnl']:,.2f}",
+                        } for r in rows],
+                        use_container_width=True, hide_index=True,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                st.error(f"Batch failed: {exc}\n\nyfinance is often rate-limited — wait and retry.")
+
+    st.caption("⚠️ Free data = ~5 sessions/ticker. This is a smoke test of edge, not a verdict. "
+               "A real expectancy study needs the deeper history from Phase 2's paid data.")
 
 with tab_status:
     st.subheader("Where the project is")

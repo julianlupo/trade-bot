@@ -19,6 +19,17 @@ Julian: copy this list to the strategy author and bring back answers.
 | 6 | **Bar timezone** — feed returns UTC, convert to ET internally? | Wrong tz = wrong opening range = broken strategy. | UTC in → convert to America/New_York (DST-aware) | 🟡 Implementation detail, not in original. Note: original labels times "EST" but means market time → use America/New_York (handles EST/EDT). Default holds. |
 | 7 | **Halt handling** — what on a LULD halt while in a position? | Spec doesn't cover it; halts common on gappers. | Cancel ALL working orders (incl. hard stop) + pause alarms; on resume re-place stop + resume; no auto-exit | 🟡 Not addressed in original. Default holds. Confirm with author. |
 
+## Backtest evidence on Q1 (Alarm D scope) — 2026-05-27
+
+Ran a batch over 8 liquid names × ~5 sessions (40 sessions, ~29 trades) under both readings:
+
+| Alarm D scope | Win rate | Total P&L | Expectancy/trade | Profit factor | Notable |
+|---|---|---|---|---|---|
+| **Session** (original literal) | 14% | −$1,913 | −$65.95 | 0.12 | 10 trades exit via Alarm D after **avg 2.3 min** — pathological early exits from the overnight-gap-inflated opening ADX |
+| **Per-Strike** (`Trade_HVP`) | 21% | −$1,826 | −$62.96 | 0.18 | Zero Alarm-D exits; behaves far more sanely |
+
+**Read:** per-Strike is clearly the more sensible behavior (the session reading strangles trades ~2 min after entry). Strong evidence to ask the author whether Alarm D should really use `Trade_HVP`. **But neither reading is profitable on this tiny sample** — the dominant losses are ratchet-stop whipsaws, not Alarm D. Caveats: 40 sessions of free (imperfect) data is not a verdict, and indicators are not yet validated against TradingView.
+
 ## New questions found during the build
 
-_(Claude adds rows here as ambiguities surface while coding. Each is also tagged `# OPEN-Q#` at the relevant line.)_
+- **Q8 — Alarm A measurement.** The source says "1m price move > 1% against position" but doesn't define the basis. Code default: close-to-close 1m return (`# OPEN-Q8` in `alarms.py`). Confirm: close-to-close, open-to-close, or intrabar (high/low vs entry)?

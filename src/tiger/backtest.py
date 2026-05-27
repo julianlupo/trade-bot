@@ -146,6 +146,7 @@ def run_backtest(
     qqq_1m: pd.DataFrame,
     ticker: str = "TEST",
     target_date=None,
+    alarm_d_scope: str = "session",
 ) -> SessionResult:
     """Run the strategy on one target day.
 
@@ -204,6 +205,7 @@ def run_backtest(
             exited = _manage_position(
                 state, strike, ts, bar_time, row, close, high, low,
                 prev_close, rsi_1m, adx_5m, recent_adx_1m, new_5m_completed,
+                alarm_d_scope,
             )
             if exited:
                 if risk.circuit_breaker_tripped(state.realized_pnl):
@@ -276,9 +278,14 @@ def _close_position(state, strike, ts, exit_price: Decimal, reason: ExitReason):
 
 
 def _manage_position(state, strike, ts, bar_time, row, close, high, low,
-                     prev_close, rsi_1m, adx_5m, recent_adx_1m, new_5m_completed) -> bool:
+                     prev_close, rsi_1m, adx_5m, recent_adx_1m, new_5m_completed,
+                     alarm_d_scope="session") -> bool:
     """Run sentinels + stop + EOD flush for the open position. Returns True if exited."""
     d = strike.direction
+
+    # Track the per-Strike peak 5m ADX (spec Trade_HVP) for the per-strike Alarm D test.
+    if adx_5m is not None and adx_5m > strike.trade_hvp_5m_adx:
+        strike.trade_hvp_5m_adx = adx_5m
 
     # EOD flush takes precedence
     if bar_time >= EOD_FLUSH:
@@ -295,7 +302,9 @@ def _manage_position(state, strike, ts, bar_time, row, close, high, low,
         if b.action is AlarmAction.EXIT:
             _close_position(state, strike, ts, Decimal(str(close)), ExitReason.ALARM_B)
             return True
-    dd = alarms.alarm_d_hvp_lock(adx_5m, state.session_peak_5m_adx)
+    # OPEN-Q1: Alarm D peak scope — 'session' (original literal) or 'strike' (Trade_HVP).
+    hvp_peak = state.session_peak_5m_adx if alarm_d_scope == "session" else strike.trade_hvp_5m_adx
+    dd = alarms.alarm_d_hvp_lock(adx_5m, hvp_peak)
     if dd.action is AlarmAction.EXIT:
         _close_position(state, strike, ts, Decimal(str(close)), ExitReason.ALARM_D)
         return True

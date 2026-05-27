@@ -42,6 +42,7 @@ class StrikeState:
     shares: int
     stop_price: Decimal           # current resting STOP MARKET level
     stop_source: str = "hard"     # 'hard' | 'ratchet_c' | 'ratchet_e'
+    trade_hvp_5m_adx: float = 0.0  # per-Strike peak 5m ADX (spec Trade_HVP; for Alarm D per-strike test)
     exit_time: datetime | None = None
     exit_price: Decimal | None = None
     exit_reason: ExitReason | None = None
