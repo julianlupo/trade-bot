@@ -349,6 +349,37 @@ def format_report(result: SessionResult) -> str:
     return "\n".join(lines)
 
 
+def summary_stats(result: SessionResult) -> dict:
+    """Headline numbers for a session (used by the dashboard and CLI)."""
+    trades = result.trades
+    wins = [t for t in trades if t.realized_pnl() > 0]
+    n = len(trades)
+    return {
+        "trades": n,
+        "wins": len(wins),
+        "win_rate": (len(wins) / n * 100) if n else 0.0,
+        "total_pnl": float(result.total_pnl),
+        "avg_pnl": (float(result.total_pnl) / n) if n else 0.0,
+        "strikes": result.state.strikes_taken,
+        "circuit_broken": result.state.circuit_broken,
+    }
+
+
+def load_and_run_yfinance(ticker: str, period: str = "5d"):
+    """Fetch real bars, run the most recent shared day, return (result, day_bars)."""
+    from tiger import data
+
+    stock = data.load_yfinance(ticker, period=period)
+    qqq = data.load_yfinance("QQQ", period=period)
+    common = sorted(set(stock.index.normalize()) & set(qqq.index.normalize()))
+    if not common:
+        raise RuntimeError(f"No overlapping session days for {ticker} and QQQ")
+    target = common[-1]
+    result = run_backtest(stock, qqq, ticker, target_date=target)
+    day_bars = stock[stock.index.normalize() == target]
+    return result, day_bars
+
+
 def main():  # pragma: no cover - manual demo entrypoint
     import sys
 
