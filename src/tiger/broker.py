@@ -33,7 +33,7 @@ def _client() -> TradingClient:
 
 # ── entry orders ────────────────────────────────────────────────────────────
 
-def buy_limit(ticker: str, qty: int, limit_price: Decimal) -> str:
+def buy_limit(ticker: str, qty: int, limit_price: Decimal) -> str | None:
     """Submit a limit buy. Returns order ID."""
     client = _client()
     req = LimitOrderRequest(
@@ -44,13 +44,17 @@ def buy_limit(ticker: str, qty: int, limit_price: Decimal) -> str:
         time_in_force=TimeInForce.DAY,
         limit_price=float(limit_price),
     )
-    order = client.submit_order(req)
-    log.info("BUY LIMIT %s %d @ %.2f  order_id=%s", ticker, qty, float(limit_price), order.id)
-    return str(order.id)
+    try:
+        order = client.submit_order(req)
+        log.info("BUY LIMIT %s %d @ %.2f  order_id=%s", ticker, qty, float(limit_price), order.id)
+        return str(order.id)
+    except Exception as exc:
+        log.error("BUY LIMIT failed %s %d @ %.2f: %s", ticker, qty, float(limit_price), exc)
+        return None
 
 
-def sell_short_limit(ticker: str, qty: int, limit_price: Decimal) -> str:
-    """Submit a limit sell-short. Returns order ID."""
+def sell_short_limit(ticker: str, qty: int, limit_price: Decimal) -> str | None:
+    """Submit a limit sell-short. Returns order ID or None on failure."""
     client = _client()
     req = LimitOrderRequest(
         symbol=ticker,
@@ -60,9 +64,13 @@ def sell_short_limit(ticker: str, qty: int, limit_price: Decimal) -> str:
         time_in_force=TimeInForce.DAY,
         limit_price=float(limit_price),
     )
-    order = client.submit_order(req)
-    log.info("SELL SHORT LIMIT %s %d @ %.2f  order_id=%s", ticker, qty, float(limit_price), order.id)
-    return str(order.id)
+    try:
+        order = client.submit_order(req)
+        log.info("SELL SHORT LIMIT %s %d @ %.2f  order_id=%s", ticker, qty, float(limit_price), order.id)
+        return str(order.id)
+    except Exception as exc:
+        log.error("SELL SHORT failed %s %d @ %.2f: %s", ticker, qty, float(limit_price), exc)
+        return None
 
 
 # ── exit orders ─────────────────────────────────────────────────────────────

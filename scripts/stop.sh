@@ -6,4 +6,4 @@ pkill -f "streamlit run app.py" 2>/dev/null
 pkill -f "python run.py" 2>/dev/null
 
 PROJECT="$HOME/projects/trading-bot"
-echo "[$(date)] Bot and dashboard stopped." >> "$PROJECT/logs/start.log"
+echo "[$(date)] Stopped." >> "$PROJECT/logs/start.log"

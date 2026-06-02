@@ -106,12 +106,15 @@ class LiveEngine:
             log.info("[%s] OR locked: H=%.2f L=%.2f", self.ticker,
                      self._state.orh, self._state.orl)
 
-        self._state.update_extremes(bar.high, bar.low)
-
         ind = self._compute_indicators(bar)
         if ind is None:
+            # Still update extremes with a neutral RSI until indicators warm up
+            self._state.update_extremes(bar.high, bar.low, 50.0)
             self._prev_close = bar.close
             return
+
+        # Update extremes now that RSI is available
+        self._state.update_extremes(bar.high, bar.low, ind["rsi_1m"])
 
         adx_1m = ind["adx_1m"]
         if adx_1m and not np.isnan(adx_1m):
@@ -242,7 +245,7 @@ class LiveEngine:
                 continue
 
             fill_price = Decimal(str(bar.close))
-            limit_px = risk.entry_limit_price(direction, float(fill_price), float(fill_price))
+            limit_px = risk.entry_limit_price(direction, fill_price)
             shares_full = risk.position_size(limit_px)
             shares = shares_full if signal.full_size else shares_full // 2
             if shares <= 0:
@@ -363,7 +366,7 @@ class LiveEngine:
             if entry.scale_in_ok(direction, ind["di_plus_1m"], ind["di_minus_1m"],
                                   made_new_extreme, divergent):
                 add_shares = strike.shares
-                limit_px = risk.entry_limit_price(direction, close, close)
+                limit_px = risk.entry_limit_price(direction, Decimal(str(close)))
                 if direction == Direction.LONG:
                     broker.buy_limit(self.ticker, add_shares, limit_px)
                 else:
