@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 import numpy as np
 import pandas as pd
 
-from tiger import alarms, broker, entry, risk
+from tiger import alarms, broker, entry, logger, risk
 from tiger.bars import LiveBar
 from tiger.indicators import adx_di, ema, rolling_volume_average, rsi, session_vwap
 from tiger.state import Direction, MarketState, StrikeState
@@ -273,6 +273,13 @@ class LiveEngine:
             log.info("[%s] ENTRY %s qty=%d limit=%.2f stop=%.2f strike=%d",
                      self.ticker, direction.value, shares, float(limit_px),
                      float(stop_px), strike.strike_number)
+            logger.log_entry(
+                ticker=self.ticker, direction=direction.value,
+                qty=shares, limit_price=float(limit_px), stop_price=float(stop_px),
+                strike_num=strike.strike_number, full_size=signal.full_size,
+                ind={k: (round(v, 4) if isinstance(v, float) else v)
+                     for k, v in ind.items() if v is not None},
+            )
             break
 
     # ── position management ──────────────────────────────────────────────────
@@ -320,6 +327,8 @@ class LiveEngine:
                     strike.stop_price = new_stop
                     strike.stop_source = "ratchet_c"
                     log.info("[%s] Alarm C ratchet → %.2f", self.ticker, float(new_stop))
+                    logger.log_ratchet(self.ticker, direction.value,
+                                       float(strike.stop_price), float(new_stop), "alarm_c")
 
         e = alarms.alarm_e_divergence(
             direction, close, ind["rsi_1m"],
@@ -331,6 +340,8 @@ class LiveEngine:
                 strike.stop_price = new_stop
                 strike.stop_source = "ratchet_e"
                 log.info("[%s] Alarm E ratchet → %.2f", self.ticker, float(new_stop))
+                logger.log_ratchet(self.ticker, direction.value,
+                                   float(strike.stop_price), float(new_stop), "alarm_e")
 
         if direction == Direction.LONG and close > (self._state.stored_peak_price or 0):
             self._state.stored_peak_price = close
@@ -384,9 +395,16 @@ class LiveEngine:
             self._state.circuit_broken = True
             log.warning("[%s] CIRCUIT BREAKER — no more trades. daily_pnl=%.2f",
                         self.ticker, float(self._state.realized_pnl))
+            logger.log_circuit_break(self.ticker, float(self._state.realized_pnl))
         log.info("[%s] EXIT %s reason=%s pnl=%.2f daily_pnl=%.2f",
                  self.ticker, strike.direction.value, reason,
                  float(pnl), float(self._state.realized_pnl))
+        logger.log_exit(
+            ticker=self.ticker, direction=strike.direction.value,
+            exit_price=float(fill), entry_price=float(strike.entry_price),
+            qty=strike.shares, pnl=float(pnl), reason=reason,
+            daily_pnl=float(self._state.realized_pnl),
+        )
 
     def _do_eod_flush(self, bar: LiveBar) -> None:
         if self._state.in_position:

@@ -14,6 +14,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from tiger import batch, data
+from tiger import logger as event_log
 from tiger.backtest import (
     load_and_run_yfinance,
     run_backtest,
@@ -111,9 +112,236 @@ def show_result(result, day_bars):
 st.title("🐯 Tiger Sovereign")
 st.caption("Intraday momentum trading bot — backtesting stage. Not trading real money.")
 
-tab_run, tab_batch, tab_status, tab_spec = st.tabs(
-    ["▶ Run a backtest", "📈 Batch test (the edge)", "📋 Project status", "📖 Strategy & open questions"]
+tab_live, tab_run, tab_batch, tab_status, tab_spec = st.tabs(
+    ["🔴 Live Trading", "▶ Run a backtest", "📈 Batch test (the edge)", "📋 Project status", "📖 Strategy & open questions"]
 )
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# LIVE TRADING TAB
+# ═══════════════════════════════════════════════════════════════════════════════
+with tab_live:
+    st.subheader("Live paper trading — today's session")
+    st.caption("Refreshes every 10 seconds while the bot is running. Start the bot with: `uv run python run.py`")
+
+    auto_refresh = st.toggle("Auto-refresh", value=True)
+    if auto_refresh:
+        import time as _time
+        _time.sleep(0)   # yields; Streamlit will rerun on next cycle
+        st.empty()
+
+    events = event_log.read_today()
+
+    if not events:
+        st.info("No activity yet today. Run `uv run python run.py` in your terminal to start the bot.")
+    else:
+        # ── Scan results ────────────────────────────────────────────────────
+        scan_events = [e for e in events if e["type"] == "scan"]
+        if scan_events:
+            latest_scan = scan_events[-1]
+            candidates = latest_scan.get("candidates", [])
+            st.markdown("### Today's pre-market scan")
+            if not candidates:
+                st.warning("Scanner ran but found no gap candidates with news today.")
+            else:
+                for c in candidates:
+                    sign = "+" if c["gap_pct"] > 0 else ""
+                    direction_emoji = "▲" if c["direction"] == "long" else "▼"
+                    st.markdown(
+                        f"**{c['ticker']}** &nbsp; {direction_emoji} {sign}{c['gap_pct']:.1f}% gap &nbsp;|&nbsp; "
+                        f"prev close {c['prev_close']:.2f} → pre-market {c['premarket_price']:.2f}"
+                    )
+                    for h in c.get("headlines", [])[:2]:
+                        st.caption(f"  📰 {h}")
+
+        st.divider()
+
+        # ── Current position ────────────────────────────────────────────────
+        entries = [e for e in events if e["type"] == "entry"]
+        exits = [e for e in events if e["type"] == "exit"]
+        open_strike = None
+        if len(entries) > len(exits):
+            open_strike = entries[-1]
+
+        if open_strike:
+            st.markdown("### Open position")
+            col1, col2, col3, col4 = st.columns(4)
+            col1.metric("Ticker", open_strike["ticker"])
+            col2.metric("Direction", open_strike["direction"].upper())
+            col3.metric("Entry price", f"${open_strike['limit_price']:.2f}")
+            col4.metric("Stop price", f"${open_strike['stop_price']:.2f}")
+
+            ratchets = [e for e in events if e["type"] == "ratchet"
+                        and e["ts"] > open_strike["ts"]]
+            if ratchets:
+                latest_r = ratchets[-1]
+                st.caption(
+                    f"Stop ratcheted {len(ratchets)}x — latest: "
+                    f"${latest_r['old_stop']:.2f} → ${latest_r['new_stop']:.2f} ({latest_r['alarm']})"
+                )
+            scale_ins = [e for e in events if e["type"] == "scale_in"
+                         and e["ts"] > open_strike["ts"]]
+            if scale_ins:
+                si = scale_ins[-1]
+                st.caption(f"Scaled in: +{si['add_qty']} shares @ blended ${si['blended_price']:.2f}")
+
+            st.divider()
+
+        # ── Trade history (today) ───────────────────────────────────────────
+        if exits:
+            st.markdown("### Trades today")
+            daily_pnl = exits[-1]["daily_pnl"]
+            pnl_color = ET_GREEN if daily_pnl >= 0 else ET_RED
+            st.markdown(
+                f"**Daily P&L: <span style='color:{pnl_color}'>${daily_pnl:+.2f}</span>**",
+                unsafe_allow_html=True,
+            )
+
+            rows = []
+            for ex in exits:
+                matching_entry = next(
+                    (e for e in entries if e["ticker"] == ex["ticker"]
+                     and e["ts"] <= ex["ts"]), None
+                )
+                rows.append({
+                    "Ticker": ex["ticker"],
+                    "Dir": "▲" if ex["direction"] == "long" else "▼",
+                    "Entry $": f"{ex['entry_price']:.2f}",
+                    "Exit $": f"{ex['exit_price']:.2f}",
+                    "Qty": ex["qty"],
+                    "P&L": f"${ex['pnl']:+.2f}",
+                    "Exit reason": ex["reason"].replace("_", " "),
+                    "Time": ex["ts"][11:16],
+                })
+            st.dataframe(rows, use_container_width=True, hide_index=True)
+
+            # Mini equity curve
+            cumulative = 0.0
+            curve_x, curve_y = [], []
+            for ex in sorted(exits, key=lambda e: e["ts"]):
+                cumulative += ex["pnl"]
+                curve_x.append(ex["ts"][11:16])
+                curve_y.append(cumulative)
+            if len(curve_x) > 1:
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(
+                    x=curve_x, y=curve_y, mode="lines+markers",
+                    line=dict(color=ET_GREEN if curve_y[-1] >= 0 else ET_RED, width=2),
+                    fill="tozeroy",
+                    fillcolor="rgba(22,163,74,0.1)" if curve_y[-1] >= 0 else "rgba(220,38,38,0.1)",
+                ))
+                fig.update_layout(
+                    height=200, margin=dict(l=0, r=0, t=10, b=0),
+                    yaxis_title="P&L ($)", xaxis_title="",
+                    showlegend=False, plot_bgcolor="rgba(0,0,0,0)",
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+        elif not open_strike:
+            st.info("Bot is running — no trades taken yet today.")
+
+        st.divider()
+
+        # ── Decision log ────────────────────────────────────────────────────
+        st.markdown("### Decision log")
+        st.caption("Every entry, exit, ratchet, and scale-in — with the indicator values that triggered it.")
+
+        log_types = {"entry", "exit", "ratchet", "scale_in", "circuit_break"}
+        decision_events = [e for e in events if e["type"] in log_types]
+
+        if not decision_events:
+            st.caption("No decisions yet.")
+        else:
+            for ev in reversed(decision_events[-50:]):
+                t = ev["ts"][11:16]
+                etype = ev["type"]
+                if etype == "entry":
+                    ind = ev.get("ind", {})
+                    adx = ind.get("adx_5m", "?")
+                    di = ind.get("di_plus_1m" if ev["direction"] == "long" else "di_minus_1m", "?")
+                    st.success(
+                        f"**{t}  ENTRY {ev['direction'].upper()} {ev['ticker']}** — "
+                        f"{ev['qty']} shares @ ${ev['limit_price']:.2f}  |  "
+                        f"stop ${ev['stop_price']:.2f}  |  "
+                        f"Strike {ev['strike_num']} ({'full' if ev['full_size'] else 'half'} size)  |  "
+                        f"ADX5m={adx}  DI={di}"
+                    )
+                elif etype == "exit":
+                    color_fn = st.success if ev["pnl"] >= 0 else st.error
+                    color_fn(
+                        f"**{t}  EXIT {ev['direction'].upper()} {ev['ticker']}** — "
+                        f"@ ${ev['exit_price']:.2f}  |  "
+                        f"P&L **${ev['pnl']:+.2f}**  |  reason: {ev['reason'].replace('_', ' ')}"
+                    )
+                elif etype == "ratchet":
+                    st.warning(
+                        f"**{t}  RATCHET {ev['ticker']}** — "
+                        f"stop ${ev['old_stop']:.2f} → ${ev['new_stop']:.2f}  ({ev['alarm']})"
+                    )
+                elif etype == "scale_in":
+                    st.info(
+                        f"**{t}  SCALE-IN {ev['ticker']}** — "
+                        f"+{ev['add_qty']} shares  blended ${ev['blended_price']:.2f}  "
+                        f"new stop ${ev['new_stop']:.2f}"
+                    )
+                elif etype == "circuit_break":
+                    st.error(f"**{t}  CIRCUIT BREAKER** — daily loss limit hit. No more trades today.")
+
+        st.divider()
+
+        # ── What the bot is learning (all-time paper stats) ─────────────────
+        st.markdown("### What the bot is learning (all paper trades)")
+        st.caption("Accumulates across every day the bot has run.")
+
+        all_events = event_log.read_all()
+        all_exits = [e for e in all_events if e["type"] == "exit"]
+
+        if len(all_exits) < 2:
+            st.caption("Need at least 2 completed trades to show patterns.")
+        else:
+            wins = [e for e in all_exits if e["pnl"] > 0]
+            losses = [e for e in all_exits if e["pnl"] <= 0]
+            total_pnl = sum(e["pnl"] for e in all_exits)
+            win_rate = len(wins) / len(all_exits) * 100
+
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Total paper trades", len(all_exits))
+            m2.metric("Win rate", f"{win_rate:.0f}%")
+            m3.metric("Total paper P&L", f"${total_pnl:+,.2f}")
+            m4.metric("Avg trade", f"${total_pnl/len(all_exits):+.2f}")
+
+            # Exit reasons breakdown
+            from collections import Counter
+            reasons = Counter(e["reason"] for e in all_exits)
+            st.markdown("**Why trades ended:**")
+            reason_data = [
+                {"Exit reason": r.replace("_", " "), "Count": c,
+                 "Avg P&L": f"${sum(e['pnl'] for e in all_exits if e['reason'] == r)/c:+.2f}"}
+                for r, c in reasons.most_common()
+            ]
+            st.dataframe(reason_data, use_container_width=True, hide_index=True)
+
+            # Direction breakdown
+            long_exits = [e for e in all_exits if e["direction"] == "long"]
+            short_exits = [e for e in all_exits if e["direction"] == "short"]
+            if long_exits and short_exits:
+                st.markdown("**Long vs Short:**")
+                dir_data = [
+                    {"Direction": "Long (Bison)",
+                     "Trades": len(long_exits),
+                     "Win rate": f"{sum(1 for e in long_exits if e['pnl'] > 0)/len(long_exits)*100:.0f}%",
+                     "Total P&L": f"${sum(e['pnl'] for e in long_exits):+,.2f}"},
+                    {"Direction": "Short (Wounded Buffalo)",
+                     "Trades": len(short_exits),
+                     "Win rate": f"{sum(1 for e in short_exits if e['pnl'] > 0)/len(short_exits)*100:.0f}%",
+                     "Total P&L": f"${sum(e['pnl'] for e in short_exits):+,.2f}"},
+                ]
+                st.dataframe(dir_data, use_container_width=True, hide_index=True)
+
+    if auto_refresh:
+        import time as _time
+        _time.sleep(10)
+        st.rerun()
+
 
 with tab_run:
     st.subheader("Test the strategy on a real recent day")

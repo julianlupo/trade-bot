@@ -13,6 +13,8 @@ from alpaca.data.historical import NewsClient, StockHistoricalDataClient
 from alpaca.data.requests import NewsRequest, StockSnapshotRequest
 from dotenv import load_dotenv
 
+from tiger import logger
+
 ET = ZoneInfo("America/New_York")
 
 # Liquid universe — covers most intraday momentum movers
@@ -152,6 +154,19 @@ def run_scan(print_results: bool = True) -> list[Candidate]:
             print(f"[scanner] {len(candidates)} candidate(s):\n")
             for c in candidates:
                 print(f"  {c}")
+
+    # Log to dashboard file
+    logger.log_scan([
+        {
+            "ticker": c.ticker,
+            "gap_pct": round(c.gap_pct * 100, 2),
+            "direction": c.direction,
+            "prev_close": c.prev_close,
+            "premarket_price": c.premarket_price,
+            "headlines": c.headlines[:3],
+        }
+        for c in candidates
+    ])
     return candidates
 
 
