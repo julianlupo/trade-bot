@@ -10,6 +10,8 @@ dependencies = [
     "yfinance>=1.4.0",
     "streamlit>=1.57.0",
     "plotly>=6.7.0",
+    "python-dotenv>=1.2.2",
+    "alpaca-py>=0.43.4",
 ]
 # NOTE: indicators (RSI, ADX, DI+/-, EMA, VWAP) are hand-rolled in
 # src/tiger/indicators.py using Wilder's smoothing to match TradingView exactly.
