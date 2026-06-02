@@ -1,13 +1,8 @@
-"""Tiger Sovereign — local dashboard.
-
-A simple, clean UI to track the project and run backtests with a visual of
-where the bot entered and exited.
-
-Run it:  uv run streamlit run app.py
-"""
-
+"""Tiger Sovereign — trading dashboard."""
 from __future__ import annotations
 
+import time as _time
+from collections import Counter
 from pathlib import Path
 
 import plotly.graph_objects as go
@@ -15,447 +10,709 @@ import streamlit as st
 
 from tiger import batch, data
 from tiger import logger as event_log
-from tiger.backtest import (
-    load_and_run_yfinance,
-    run_backtest,
-    summary_stats,
-)
+from tiger.backtest import load_and_run_yfinance, run_backtest, summary_stats
 
 ROOT = Path(__file__).parent
-ET_GREEN, ET_RED, ET_BLUE = "#16a34a", "#dc2626", "#2563eb"
 
-st.set_page_config(page_title="Tiger Sovereign", page_icon="🐯", layout="wide")
+st.set_page_config(page_title="TIGER SOVEREIGN", page_icon="🐯", layout="wide")
+
+# ── Futuristic CSS ────────────────────────────────────────────────────────────
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+html, body, [class*="css"] { font-family: 'Share Tech Mono', monospace; }
+
+.stApp { background-color: #06061a; }
+
+/* ── Header ── */
+.tiger-header {
+    background: linear-gradient(90deg, #06061a 0%, #0d0d35 50%, #06061a 100%);
+    border-bottom: 1px solid rgba(0,255,200,0.2);
+    padding: 18px 0 14px 0;
+    margin-bottom: 24px;
+    text-align: center;
+}
+.tiger-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.4rem;
+    font-weight: 900;
+    letter-spacing: 0.25em;
+    background: linear-gradient(90deg, #00ffc8, #7c3aed, #00ffc8);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 4s linear infinite;
+}
+@keyframes shimmer { to { background-position: 200% center; } }
+
+.live-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,45,85,0.15); border: 1px solid rgba(255,45,85,0.4);
+    border-radius: 20px; padding: 3px 12px;
+    font-size: 0.7rem; letter-spacing: 0.15em; color: #ff2d55;
+}
+.live-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #ff2d55;
+    animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 6px #ff2d55; }
+    50% { opacity: 0.3; box-shadow: none; }
+}
+
+/* ── Cards ── */
+.card {
+    background: linear-gradient(135deg, rgba(13,13,45,0.9) 0%, rgba(8,8,30,0.9) 100%);
+    border: 1px solid rgba(0,255,200,0.15);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 0 30px rgba(0,255,200,0.04), inset 0 0 30px rgba(0,0,80,0.2);
+    position: relative; overflow: hidden;
+}
+.card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,255,200,0.5), transparent);
+}
+
+.card-danger {
+    border-color: rgba(255,45,85,0.3);
+    box-shadow: 0 0 30px rgba(255,45,85,0.06);
+}
+.card-danger::before {
+    background: linear-gradient(90deg, transparent, rgba(255,45,85,0.5), transparent);
+}
+.card-warning {
+    border-color: rgba(255,184,0,0.3);
+    box-shadow: 0 0 30px rgba(255,184,0,0.06);
+}
+
+.card-label {
+    font-size: 0.65rem; letter-spacing: 0.2em;
+    color: rgba(0,255,200,0.5); text-transform: uppercase;
+    margin-bottom: 6px;
+}
+.card-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.8rem; font-weight: 700;
+    color: #00ffc8;
+}
+.card-value-red { color: #ff2d55; }
+.card-value-sm { font-size: 1.1rem; }
+.card-sub { font-size: 0.75rem; color: rgba(180,190,255,0.5); margin-top: 4px; }
+
+/* ── Ticker badge ── */
+.ticker-badge {
+    display: inline-block;
+    background: rgba(0,255,200,0.08);
+    border: 1px solid rgba(0,255,200,0.3);
+    border-radius: 6px;
+    padding: 8px 16px;
+    margin: 6px 4px;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1rem; font-weight: 700; color: #00ffc8;
+}
+.ticker-gap-up { color: #00ff88; border-color: rgba(0,255,136,0.4); }
+.ticker-gap-down { color: #ff2d55; border-color: rgba(255,45,85,0.4); }
+.ticker-gap-pct { font-size: 0.8rem; color: rgba(255,255,255,0.5); margin-left: 8px; }
+
+/* ── News headline ── */
+.headline {
+    font-size: 0.75rem; color: rgba(180,190,255,0.65);
+    border-left: 2px solid rgba(0,255,200,0.3);
+    padding-left: 10px; margin: 4px 0;
+    font-family: 'Share Tech Mono', monospace;
+}
+
+/* ── Decision log ── */
+.log-entry {
+    font-size: 0.78rem; font-family: 'Share Tech Mono', monospace;
+    padding: 8px 12px; border-radius: 4px; margin: 4px 0;
+    border-left: 3px solid;
+}
+.log-entry-entry {
+    background: rgba(0,255,136,0.05);
+    border-color: #00ff88; color: #b0ffda;
+}
+.log-entry-exit-win {
+    background: rgba(0,255,136,0.05);
+    border-color: #00ffc8; color: #a0f0d0;
+}
+.log-entry-exit-loss {
+    background: rgba(255,45,85,0.05);
+    border-color: #ff2d55; color: #ffb0b8;
+}
+.log-entry-ratchet {
+    background: rgba(255,184,0,0.05);
+    border-color: #ffb800; color: #ffe090;
+}
+.log-entry-scale {
+    background: rgba(124,58,237,0.08);
+    border-color: #7c3aed; color: #c4b0ff;
+}
+.log-entry-circuit {
+    background: rgba(255,45,85,0.12);
+    border-color: #ff2d55; color: #ff2d55;
+    font-weight: 700;
+}
+.log-time { color: rgba(0,255,200,0.6); margin-right: 10px; }
+
+/* ── Divider ── */
+.neon-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0,255,200,0.2), transparent);
+    margin: 24px 0;
+}
+
+/* ── Section header ── */
+.section-header {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.75rem; font-weight: 700;
+    letter-spacing: 0.25em; text-transform: uppercase;
+    color: rgba(0,255,200,0.6);
+    margin-bottom: 14px;
+}
+
+/* ── Streamlit overrides ── */
+.stTabs [data-baseweb="tab-list"] {
+    background: rgba(13,13,45,0.6);
+    border-bottom: 1px solid rgba(0,255,200,0.15);
+    gap: 4px;
+}
+.stTabs [data-baseweb="tab"] {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 0.75rem; letter-spacing: 0.1em;
+    color: rgba(180,190,255,0.5) !important;
+    background: transparent !important;
+    border: none !important;
+    padding: 10px 20px;
+}
+.stTabs [aria-selected="true"] {
+    color: #00ffc8 !important;
+    border-bottom: 2px solid #00ffc8 !important;
+}
+[data-testid="stMetricValue"] { font-family: 'Orbitron', monospace; font-size: 1.4rem; }
+[data-testid="stMetricLabel"] { font-size: 0.65rem; letter-spacing: 0.15em; opacity: 0.6; }
+.stButton > button {
+    font-family: 'Share Tech Mono', monospace; letter-spacing: 0.1em;
+    border: 1px solid rgba(0,255,200,0.4) !important;
+    background: rgba(0,255,200,0.06) !important;
+    color: #00ffc8 !important;
+}
+.stButton > button:hover {
+    background: rgba(0,255,200,0.14) !important;
+    box-shadow: 0 0 16px rgba(0,255,200,0.2);
+}
+.stDataFrame { border: 1px solid rgba(0,255,200,0.1) !important; border-radius: 8px; }
+</style>
+""", unsafe_allow_html=True)
+
+# ── Page header ──────────────────────────────────────────────────────────────
+st.markdown("""
+<div class="tiger-header">
+    <div class="tiger-title">TIGER SOVEREIGN</div>
+    <div style="margin-top:8px;">
+        <span class="live-badge"><span class="live-dot"></span>PAPER TRADING ACTIVE</span>
+    </div>
+    <div style="font-size:0.65rem;color:rgba(180,190,255,0.3);margin-top:8px;letter-spacing:0.2em;">
+        INTRADAY MOMENTUM SYSTEM &nbsp;|&nbsp; US EQUITIES &nbsp;|&nbsp; ALPACA PAPER
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ── Tabs ──────────────────────────────────────────────────────────────────────
+tab_live, tab_run, tab_batch, tab_status, tab_spec = st.tabs([
+    "◉ LIVE",
+    "▷ BACKTEST",
+    "▤ BATCH",
+    "◈ STATUS",
+    "◎ STRATEGY",
+])
 
 
-# --------------------------------------------------------------------------- #
-# Helpers
-# --------------------------------------------------------------------------- #
+# ── helpers ───────────────────────────────────────────────────────────────────
 def _read(path: str) -> str:
     p = ROOT / path
     return p.read_text() if p.exists() else f"_(missing {path})_"
 
 
-def price_chart(day_bars, result):
-    """Candlestick of the traded day + opening range + entry/exit markers."""
-    s = result.state
-    fig = go.Figure(
-        go.Candlestick(
-            x=day_bars.index,
-            open=day_bars["open"], high=day_bars["high"],
-            low=day_bars["low"], close=day_bars["close"],
-            name="price", increasing_line_color=ET_GREEN, decreasing_line_color=ET_RED,
-        )
-    )
-    if s.orh is not None:
-        fig.add_hline(y=s.orh, line_dash="dot", line_color=ET_BLUE,
-                      annotation_text="ORH (open range high)")
-    if s.orl is not None:
-        fig.add_hline(y=s.orl, line_dash="dot", line_color=ET_BLUE,
-                      annotation_text="ORL (open range low)")
-
-    for t in result.trades:
-        up = t.direction.value == "long"
-        fig.add_trace(go.Scatter(
-            x=[t.entry_time], y=[float(t.entry_price)], mode="markers",
-            marker=dict(symbol="triangle-up" if up else "triangle-down",
-                        size=15, color=ET_GREEN if up else ET_RED,
-                        line=dict(width=1, color="white")),
-            name=f"Entry S{t.strike_number} ({t.direction.value})",
-        ))
-        win = t.realized_pnl() > 0
-        fig.add_trace(go.Scatter(
-            x=[t.exit_time], y=[float(t.exit_price)], mode="markers",
-            marker=dict(symbol="x", size=13,
-                        color=ET_GREEN if win else ET_RED, line=dict(width=1)),
-            name=f"Exit S{t.strike_number} ({t.exit_reason.value})",
-        ))
-    fig.update_layout(height=520, margin=dict(t=10, b=10),
-                      xaxis_rangeslider_visible=False,
-                      legend=dict(orientation="h", y=-0.12))
-    return fig
+def _card(label: str, value: str, sub: str = "", danger: bool = False, warn: bool = False) -> str:
+    cls = "card-danger" if danger else ("card-warning" if warn else "")
+    val_cls = "card-value-red" if danger else "card-value"
+    return f"""
+    <div class="card {cls}">
+        <div class="card-label">{label}</div>
+        <div class="{val_cls}">{value}</div>
+        {"<div class='card-sub'>" + sub + "</div>" if sub else ""}
+    </div>"""
 
 
-def show_result(result, day_bars):
-    stats = summary_stats(result)
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Session P&L", f"${stats['total_pnl']:,.2f}")
-    c2.metric("Trades", stats["trades"])
-    c3.metric("Win rate", f"{stats['win_rate']:.0f}%" if stats["trades"] else "—")
-    c4.metric("Strikes used", f"{stats['strikes']} / 3")
+def _log_html(events: list[dict]) -> str:
+    lines = []
+    for ev in reversed(events[-60:]):
+        t = ev["ts"][11:16]
+        etype = ev["type"]
+        if etype == "entry":
+            ind = ev.get("ind", {})
+            adx = f"{ind.get('adx_5m', '?')}"
+            lines.append(
+                f'<div class="log-entry log-entry-entry">'
+                f'<span class="log-time">{t}</span>'
+                f'ENTRY &nbsp; {ev["direction"].upper()} &nbsp; {ev["ticker"]} &nbsp;'
+                f'@ ${ev["limit_price"]:.2f} &nbsp;|&nbsp; '
+                f'stop ${ev["stop_price"]:.2f} &nbsp;|&nbsp; '
+                f'strike {ev["strike_num"]} ({("FULL" if ev["full_size"] else "HALF")}) &nbsp;|&nbsp; '
+                f'ADX5={adx}'
+                f'</div>'
+            )
+        elif etype == "exit":
+            win = ev["pnl"] >= 0
+            cls = "log-entry-exit-win" if win else "log-entry-exit-loss"
+            pnl_str = f'+${ev["pnl"]:.2f}' if win else f'-${abs(ev["pnl"]):.2f}'
+            lines.append(
+                f'<div class="log-entry {cls}">'
+                f'<span class="log-time">{t}</span>'
+                f'EXIT &nbsp; {ev["direction"].upper()} &nbsp; {ev["ticker"]} &nbsp;'
+                f'@ ${ev["exit_price"]:.2f} &nbsp;|&nbsp; '
+                f'P&L <strong>{pnl_str}</strong> &nbsp;|&nbsp; '
+                f'{ev["reason"].replace("_", " ")}'
+                f'</div>'
+            )
+        elif etype == "ratchet":
+            lines.append(
+                f'<div class="log-entry log-entry-ratchet">'
+                f'<span class="log-time">{t}</span>'
+                f'RATCHET &nbsp; {ev["ticker"]} &nbsp;'
+                f'stop ${ev["old_stop"]:.2f} → ${ev["new_stop"]:.2f} &nbsp;({ev["alarm"].upper()})'
+                f'</div>'
+            )
+        elif etype == "scale_in":
+            lines.append(
+                f'<div class="log-entry log-entry-scale">'
+                f'<span class="log-time">{t}</span>'
+                f'SCALE-IN &nbsp; {ev["ticker"]} &nbsp;'
+                f'+{ev["add_qty"]} shares @ blended ${ev["blended_price"]:.2f} &nbsp;|&nbsp; '
+                f'new stop ${ev["new_stop"]:.2f}'
+                f'</div>'
+            )
+        elif etype == "circuit_break":
+            lines.append(
+                f'<div class="log-entry log-entry-circuit">'
+                f'<span class="log-time">{t}</span>'
+                f'⚡ CIRCUIT BREAKER — daily loss limit hit. Trading halted.'
+                f'</div>'
+            )
+    return "\n".join(lines) if lines else '<div style="color:rgba(180,190,255,0.3);font-size:0.8rem;">No decisions yet.</div>'
 
-    if stats["circuit_broken"]:
-        st.error("⚠️ Daily circuit breaker tripped (−$1,500 hit) — trading halted for the day.")
-
-    st.plotly_chart(price_chart(day_bars, result), use_container_width=True)
-
-    if result.trades:
-        rows = [{
-            "Strike": t.strike_number,
-            "Direction": "▲ Long" if t.direction.value == "long" else "▼ Short",
-            "Shares": t.shares,
-            "Entry": f"{float(t.entry_price):.3f}",
-            "Exit": f"{float(t.exit_price):.3f}",
-            "Why it exited": t.exit_reason.value.replace("_", " "),
-            "P&L": f"${float(t.realized_pnl()):,.2f}",
-            "In at": t.entry_time.strftime("%H:%M"),
-            "Out at": t.exit_time.strftime("%H:%M"),
-        } for t in result.trades]
-        st.dataframe(rows, use_container_width=True, hide_index=True)
-    else:
-        st.info("No trades — the filters never all lined up on this day. That's normal; "
-                "the strategy sits out days without a clean setup.")
-
-
-# --------------------------------------------------------------------------- #
-# Layout
-# --------------------------------------------------------------------------- #
-st.title("🐯 Tiger Sovereign")
-st.caption("Intraday momentum trading bot — backtesting stage. Not trading real money.")
-
-tab_live, tab_run, tab_batch, tab_status, tab_spec = st.tabs(
-    ["🔴 Live Trading", "▶ Run a backtest", "📈 Batch test (the edge)", "📋 Project status", "📖 Strategy & open questions"]
-)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# LIVE TRADING TAB
+# LIVE TAB
 # ═══════════════════════════════════════════════════════════════════════════════
 with tab_live:
-    st.subheader("Live paper trading — today's session")
-    st.caption("Refreshes every 10 seconds while the bot is running. Start the bot with: `uv run python run.py`")
-
-    auto_refresh = st.toggle("Auto-refresh", value=True)
-    if auto_refresh:
-        import time as _time
-        _time.sleep(0)   # yields; Streamlit will rerun on next cycle
-        st.empty()
-
+    auto_refresh = st.toggle("Auto-refresh (10s)", value=True, key="ar")
     events = event_log.read_today()
+    all_events = event_log.read_all()
 
-    if not events:
-        st.info("No activity yet today. Run `uv run python run.py` in your terminal to start the bot.")
-    else:
-        # ── Scan results ────────────────────────────────────────────────────
+    entries = [e for e in events if e["type"] == "entry"]
+    exits = [e for e in events if e["type"] == "exit"]
+    open_strike = entries[-1] if len(entries) > len(exits) else None
+    daily_pnl = exits[-1]["daily_pnl"] if exits else 0.0
+    all_exits = [e for e in all_events if e["type"] == "exit"]
+
+    # ── Top metrics row ──────────────────────────────────────────────────────
+    c1, c2, c3, c4, c5 = st.columns(5)
+    pnl_color = "card-value" if daily_pnl >= 0 else "card-value card-value-red"
+    pnl_sign = "+" if daily_pnl >= 0 else ""
+    c1.markdown(_card("TODAY P&L", f"{pnl_sign}${daily_pnl:,.2f}",
+                      danger=daily_pnl < 0), unsafe_allow_html=True)
+    c2.markdown(_card("TRADES TODAY", str(len(exits)),
+                      sub=f"{len(entries) - len(exits)} open"), unsafe_allow_html=True)
+    win_today = len([e for e in exits if e["pnl"] > 0])
+    wr_today = f"{win_today/len(exits)*100:.0f}%" if exits else "—"
+    c3.markdown(_card("WIN RATE", wr_today,
+                      sub=f"{win_today}W / {len(exits)-win_today}L"), unsafe_allow_html=True)
+    all_pnl = sum(e["pnl"] for e in all_exits)
+    c4.markdown(_card("ALL-TIME P&L", f"${all_pnl:+,.2f}",
+                      sub=f"{len(all_exits)} total paper trades",
+                      danger=all_pnl < 0), unsafe_allow_html=True)
+    all_wr = f"{sum(1 for e in all_exits if e['pnl']>0)/len(all_exits)*100:.0f}%" if all_exits else "—"
+    c5.markdown(_card("ALL-TIME WIN RATE", all_wr), unsafe_allow_html=True)
+
+    st.markdown('<div class="neon-divider"></div>', unsafe_allow_html=True)
+
+    # ── Two column layout: left = scan + position, right = log ───────────────
+    left, right = st.columns([1, 1.4])
+
+    with left:
+        # Scan results
         scan_events = [e for e in events if e["type"] == "scan"]
-        if scan_events:
-            latest_scan = scan_events[-1]
-            candidates = latest_scan.get("candidates", [])
-            st.markdown("### Today's pre-market scan")
+        st.markdown('<div class="section-header">Pre-Market Scan</div>', unsafe_allow_html=True)
+        if not scan_events:
+            st.markdown('<div style="color:rgba(180,190,255,0.3);font-size:0.8rem;">Scanner hasn\'t run yet today.</div>', unsafe_allow_html=True)
+        else:
+            candidates = scan_events[-1].get("candidates", [])
+            scan_time = scan_events[-1]["ts"][11:16]
             if not candidates:
-                st.warning("Scanner ran but found no gap candidates with news today.")
+                st.markdown(f'<div style="color:rgba(255,184,0,0.6);font-size:0.8rem;">Scan at {scan_time} — no gap candidates found.</div>', unsafe_allow_html=True)
             else:
+                st.markdown(f'<div style="color:rgba(0,255,200,0.4);font-size:0.7rem;margin-bottom:10px;">SCANNED AT {scan_time} ET</div>', unsafe_allow_html=True)
                 for c in candidates:
                     sign = "+" if c["gap_pct"] > 0 else ""
-                    direction_emoji = "▲" if c["direction"] == "long" else "▼"
-                    st.markdown(
-                        f"**{c['ticker']}** &nbsp; {direction_emoji} {sign}{c['gap_pct']:.1f}% gap &nbsp;|&nbsp; "
-                        f"prev close {c['prev_close']:.2f} → pre-market {c['premarket_price']:.2f}"
+                    dir_cls = "ticker-gap-up" if c["gap_pct"] > 0 else "ticker-gap-down"
+                    arrow = "▲" if c["gap_pct"] > 0 else "▼"
+                    headlines_html = "".join(
+                        f'<div class="headline">📰 {h[:90]}</div>'
+                        for h in c.get("headlines", [])[:2]
                     )
-                    for h in c.get("headlines", [])[:2]:
-                        st.caption(f"  📰 {h}")
+                    st.markdown(f"""
+                    <div class="card" style="padding:14px;margin-bottom:10px;">
+                        <span class="ticker-badge {dir_cls}">{c['ticker']}</span>
+                        <span style="font-size:0.95rem;color:{'#00ff88' if c['gap_pct']>0 else '#ff2d55'};">
+                            {arrow} {sign}{c['gap_pct']:.1f}%
+                        </span>
+                        <span style="font-size:0.72rem;color:rgba(180,190,255,0.4);margin-left:10px;">
+                            {c['prev_close']:.2f} → {c['premarket_price']:.2f}
+                        </span>
+                        <div style="margin-top:8px;">{headlines_html}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
-        st.divider()
+        st.markdown('<div class="neon-divider"></div>', unsafe_allow_html=True)
 
-        # ── Current position ────────────────────────────────────────────────
-        entries = [e for e in events if e["type"] == "entry"]
-        exits = [e for e in events if e["type"] == "exit"]
-        open_strike = None
-        if len(entries) > len(exits):
-            open_strike = entries[-1]
-
+        # Open position
+        st.markdown('<div class="section-header">Open Position</div>', unsafe_allow_html=True)
         if open_strike:
-            st.markdown("### Open position")
-            col1, col2, col3, col4 = st.columns(4)
-            col1.metric("Ticker", open_strike["ticker"])
-            col2.metric("Direction", open_strike["direction"].upper())
-            col3.metric("Entry price", f"${open_strike['limit_price']:.2f}")
-            col4.metric("Stop price", f"${open_strike['stop_price']:.2f}")
+            ratchets = [e for e in events if e["type"] == "ratchet" and e["ts"] > open_strike["ts"]]
+            current_stop = ratchets[-1]["new_stop"] if ratchets else open_strike["stop_price"]
+            dir_color = "#00ff88" if open_strike["direction"] == "long" else "#ff2d55"
+            arrow = "▲" if open_strike["direction"] == "long" else "▼"
+            st.markdown(f"""
+            <div class="card">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span class="ticker-badge" style="font-size:1.4rem;">{open_strike['ticker']}</span>
+                    <span style="font-family:Orbitron;font-size:1.1rem;color:{dir_color};">
+                        {arrow} {open_strike['direction'].upper()}
+                    </span>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;">
+                    <div>
+                        <div class="card-label">ENTRY</div>
+                        <div class="card-value card-value-sm">${open_strike['limit_price']:.2f}</div>
+                    </div>
+                    <div>
+                        <div class="card-label">STOP</div>
+                        <div class="card-value card-value-sm card-value-red">${current_stop:.2f}</div>
+                    </div>
+                    <div>
+                        <div class="card-label">SHARES</div>
+                        <div class="card-value card-value-sm">{open_strike['qty']}</div>
+                    </div>
+                    <div>
+                        <div class="card-label">STRIKE</div>
+                        <div class="card-value card-value-sm">{'FULL' if open_strike['full_size'] else 'HALF'} #{open_strike['strike_num']}</div>
+                    </div>
+                </div>
+                {"<div style='margin-top:10px;font-size:0.72rem;color:rgba(255,184,0,0.7);'>Stop ratcheted " + str(len(ratchets)) + "x</div>" if ratchets else ""}
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown('<div style="color:rgba(180,190,255,0.3);font-size:0.8rem;">No open position.</div>', unsafe_allow_html=True)
 
-            ratchets = [e for e in events if e["type"] == "ratchet"
-                        and e["ts"] > open_strike["ts"]]
-            if ratchets:
-                latest_r = ratchets[-1]
-                st.caption(
-                    f"Stop ratcheted {len(ratchets)}x — latest: "
-                    f"${latest_r['old_stop']:.2f} → ${latest_r['new_stop']:.2f} ({latest_r['alarm']})"
-                )
-            scale_ins = [e for e in events if e["type"] == "scale_in"
-                         and e["ts"] > open_strike["ts"]]
-            if scale_ins:
-                si = scale_ins[-1]
-                st.caption(f"Scaled in: +{si['add_qty']} shares @ blended ${si['blended_price']:.2f}")
+        st.markdown('<div class="neon-divider"></div>', unsafe_allow_html=True)
 
-            st.divider()
-
-        # ── Trade history (today) ───────────────────────────────────────────
+        # Today's trades
+        st.markdown('<div class="section-header">Trades Today</div>', unsafe_allow_html=True)
         if exits:
-            st.markdown("### Trades today")
-            daily_pnl = exits[-1]["daily_pnl"]
-            pnl_color = ET_GREEN if daily_pnl >= 0 else ET_RED
-            st.markdown(
-                f"**Daily P&L: <span style='color:{pnl_color}'>${daily_pnl:+.2f}</span>**",
-                unsafe_allow_html=True,
-            )
-
-            rows = []
-            for ex in exits:
-                matching_entry = next(
-                    (e for e in entries if e["ticker"] == ex["ticker"]
-                     and e["ts"] <= ex["ts"]), None
-                )
-                rows.append({
-                    "Ticker": ex["ticker"],
-                    "Dir": "▲" if ex["direction"] == "long" else "▼",
-                    "Entry $": f"{ex['entry_price']:.2f}",
-                    "Exit $": f"{ex['exit_price']:.2f}",
-                    "Qty": ex["qty"],
-                    "P&L": f"${ex['pnl']:+.2f}",
-                    "Exit reason": ex["reason"].replace("_", " "),
-                    "Time": ex["ts"][11:16],
-                })
-            st.dataframe(rows, use_container_width=True, hide_index=True)
-
-            # Mini equity curve
-            cumulative = 0.0
-            curve_x, curve_y = [], []
+            # Equity curve
+            cumulative, cx, cy = 0.0, [], []
             for ex in sorted(exits, key=lambda e: e["ts"]):
                 cumulative += ex["pnl"]
-                curve_x.append(ex["ts"][11:16])
-                curve_y.append(cumulative)
-            if len(curve_x) > 1:
+                cx.append(ex["ts"][11:16])
+                cy.append(cumulative)
+            if len(cx) > 1:
+                line_color = "#00ffc8" if cy[-1] >= 0 else "#ff2d55"
+                fill_color = "rgba(0,255,200,0.08)" if cy[-1] >= 0 else "rgba(255,45,85,0.08)"
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(
-                    x=curve_x, y=curve_y, mode="lines+markers",
-                    line=dict(color=ET_GREEN if curve_y[-1] >= 0 else ET_RED, width=2),
-                    fill="tozeroy",
-                    fillcolor="rgba(22,163,74,0.1)" if curve_y[-1] >= 0 else "rgba(220,38,38,0.1)",
+                    x=cx, y=cy, mode="lines+markers",
+                    line=dict(color=line_color, width=2),
+                    marker=dict(size=6, color=line_color,
+                                line=dict(width=1, color="rgba(0,0,0,0.5)")),
+                    fill="tozeroy", fillcolor=fill_color,
                 ))
                 fig.update_layout(
-                    height=200, margin=dict(l=0, r=0, t=10, b=0),
-                    yaxis_title="P&L ($)", xaxis_title="",
-                    showlegend=False, plot_bgcolor="rgba(0,0,0,0)",
+                    height=160, margin=dict(l=0, r=0, t=10, b=0),
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    xaxis=dict(showgrid=False, color="rgba(180,190,255,0.3)"),
+                    yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.04)",
+                               color="rgba(180,190,255,0.3)", tickprefix="$"),
+                    showlegend=False,
                 )
                 st.plotly_chart(fig, use_container_width=True)
 
-        elif not open_strike:
-            st.info("Bot is running — no trades taken yet today.")
-
-        st.divider()
-
-        # ── Decision log ────────────────────────────────────────────────────
-        st.markdown("### Decision log")
-        st.caption("Every entry, exit, ratchet, and scale-in — with the indicator values that triggered it.")
-
-        log_types = {"entry", "exit", "ratchet", "scale_in", "circuit_break"}
-        decision_events = [e for e in events if e["type"] in log_types]
-
-        if not decision_events:
-            st.caption("No decisions yet.")
+            rows = [{
+                "Ticker": e["ticker"],
+                "Dir": "▲" if e["direction"] == "long" else "▼",
+                "Entry": f"${e['entry_price']:.2f}",
+                "Exit": f"${e['exit_price']:.2f}",
+                "P&L": f"${e['pnl']:+.2f}",
+                "Reason": e["reason"].replace("_", " "),
+                "Time": e["ts"][11:16],
+            } for e in exits]
+            st.dataframe(rows, use_container_width=True, hide_index=True)
         else:
-            for ev in reversed(decision_events[-50:]):
-                t = ev["ts"][11:16]
-                etype = ev["type"]
-                if etype == "entry":
-                    ind = ev.get("ind", {})
-                    adx = ind.get("adx_5m", "?")
-                    di = ind.get("di_plus_1m" if ev["direction"] == "long" else "di_minus_1m", "?")
-                    st.success(
-                        f"**{t}  ENTRY {ev['direction'].upper()} {ev['ticker']}** — "
-                        f"{ev['qty']} shares @ ${ev['limit_price']:.2f}  |  "
-                        f"stop ${ev['stop_price']:.2f}  |  "
-                        f"Strike {ev['strike_num']} ({'full' if ev['full_size'] else 'half'} size)  |  "
-                        f"ADX5m={adx}  DI={di}"
-                    )
-                elif etype == "exit":
-                    color_fn = st.success if ev["pnl"] >= 0 else st.error
-                    color_fn(
-                        f"**{t}  EXIT {ev['direction'].upper()} {ev['ticker']}** — "
-                        f"@ ${ev['exit_price']:.2f}  |  "
-                        f"P&L **${ev['pnl']:+.2f}**  |  reason: {ev['reason'].replace('_', ' ')}"
-                    )
-                elif etype == "ratchet":
-                    st.warning(
-                        f"**{t}  RATCHET {ev['ticker']}** — "
-                        f"stop ${ev['old_stop']:.2f} → ${ev['new_stop']:.2f}  ({ev['alarm']})"
-                    )
-                elif etype == "scale_in":
-                    st.info(
-                        f"**{t}  SCALE-IN {ev['ticker']}** — "
-                        f"+{ev['add_qty']} shares  blended ${ev['blended_price']:.2f}  "
-                        f"new stop ${ev['new_stop']:.2f}"
-                    )
-                elif etype == "circuit_break":
-                    st.error(f"**{t}  CIRCUIT BREAKER** — daily loss limit hit. No more trades today.")
+            st.markdown('<div style="color:rgba(180,190,255,0.3);font-size:0.8rem;">No completed trades yet.</div>', unsafe_allow_html=True)
 
-        st.divider()
+    with right:
+        # Decision log
+        st.markdown('<div class="section-header">Decision Log</div>', unsafe_allow_html=True)
+        decision_types = {"entry", "exit", "ratchet", "scale_in", "circuit_break"}
+        decision_events = [e for e in events if e["type"] in decision_types]
+        st.markdown(
+            f'<div style="height:420px;overflow-y:auto;padding-right:4px;">{_log_html(decision_events)}</div>',
+            unsafe_allow_html=True
+        )
 
-        # ── What the bot is learning (all-time paper stats) ─────────────────
-        st.markdown("### What the bot is learning (all paper trades)")
-        st.caption("Accumulates across every day the bot has run.")
+        st.markdown('<div class="neon-divider"></div>', unsafe_allow_html=True)
 
-        all_events = event_log.read_all()
-        all_exits = [e for e in all_events if e["type"] == "exit"]
-
+        # What the bot is learning
+        st.markdown('<div class="section-header">What the Bot is Learning</div>', unsafe_allow_html=True)
         if len(all_exits) < 2:
-            st.caption("Need at least 2 completed trades to show patterns.")
+            st.markdown('<div style="color:rgba(180,190,255,0.3);font-size:0.8rem;">Need 2+ completed paper trades to show patterns.</div>', unsafe_allow_html=True)
         else:
-            wins = [e for e in all_exits if e["pnl"] > 0]
-            losses = [e for e in all_exits if e["pnl"] <= 0]
-            total_pnl = sum(e["pnl"] for e in all_exits)
-            win_rate = len(wins) / len(all_exits) * 100
-
-            m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Total paper trades", len(all_exits))
-            m2.metric("Win rate", f"{win_rate:.0f}%")
-            m3.metric("Total paper P&L", f"${total_pnl:+,.2f}")
-            m4.metric("Avg trade", f"${total_pnl/len(all_exits):+.2f}")
-
             # Exit reasons breakdown
-            from collections import Counter
             reasons = Counter(e["reason"] for e in all_exits)
-            st.markdown("**Why trades ended:**")
-            reason_data = [
-                {"Exit reason": r.replace("_", " "), "Count": c,
-                 "Avg P&L": f"${sum(e['pnl'] for e in all_exits if e['reason'] == r)/c:+.2f}"}
-                for r, c in reasons.most_common()
-            ]
-            st.dataframe(reason_data, use_container_width=True, hide_index=True)
+            reason_rows = []
+            for r, count in reasons.most_common():
+                pnls = [e["pnl"] for e in all_exits if e["reason"] == r]
+                wins = sum(1 for p in pnls if p > 0)
+                reason_rows.append({
+                    "Exit reason": r.replace("_", " "),
+                    "Count": count,
+                    "Win%": f"{wins/count*100:.0f}%",
+                    "Avg P&L": f"${sum(pnls)/count:+.2f}",
+                })
+            st.markdown('<div style="font-size:0.7rem;color:rgba(0,255,200,0.5);margin-bottom:6px;letter-spacing:0.1em;">WHY TRADES END</div>', unsafe_allow_html=True)
+            st.dataframe(reason_rows, use_container_width=True, hide_index=True)
 
-            # Direction breakdown
+            # Long vs short
             long_exits = [e for e in all_exits if e["direction"] == "long"]
             short_exits = [e for e in all_exits if e["direction"] == "short"]
-            if long_exits and short_exits:
-                st.markdown("**Long vs Short:**")
-                dir_data = [
-                    {"Direction": "Long (Bison)",
-                     "Trades": len(long_exits),
-                     "Win rate": f"{sum(1 for e in long_exits if e['pnl'] > 0)/len(long_exits)*100:.0f}%",
-                     "Total P&L": f"${sum(e['pnl'] for e in long_exits):+,.2f}"},
-                    {"Direction": "Short (Wounded Buffalo)",
-                     "Trades": len(short_exits),
-                     "Win rate": f"{sum(1 for e in short_exits if e['pnl'] > 0)/len(short_exits)*100:.0f}%",
-                     "Total P&L": f"${sum(e['pnl'] for e in short_exits):+,.2f}"},
-                ]
-                st.dataframe(dir_data, use_container_width=True, hide_index=True)
+            if long_exits or short_exits:
+                dir_rows = []
+                for label, group in [("▲ Long (Bison)", long_exits), ("▼ Short (Buffalo)", short_exits)]:
+                    if group:
+                        w = sum(1 for e in group if e["pnl"] > 0)
+                        dir_rows.append({
+                            "Direction": label,
+                            "Trades": len(group),
+                            "Win%": f"{w/len(group)*100:.0f}%",
+                            "Total P&L": f"${sum(e['pnl'] for e in group):+,.2f}",
+                        })
+                st.markdown('<div style="font-size:0.7rem;color:rgba(0,255,200,0.5);margin:12px 0 6px;letter-spacing:0.1em;">LONG VS SHORT</div>', unsafe_allow_html=True)
+                st.dataframe(dir_rows, use_container_width=True, hide_index=True)
+
+            # News categories that worked
+            scan_evs = [e for e in all_events if e["type"] == "scan"]
+            if scan_evs and all_exits:
+                st.markdown('<div style="font-size:0.7rem;color:rgba(0,255,200,0.5);margin:12px 0 6px;letter-spacing:0.1em;">TICKERS TRADED</div>', unsafe_allow_html=True)
+                ticker_rows = []
+                tickers_traded = Counter(e["ticker"] for e in all_exits)
+                for ticker, count in tickers_traded.most_common(8):
+                    t_exits = [e for e in all_exits if e["ticker"] == ticker]
+                    t_wins = sum(1 for e in t_exits if e["pnl"] > 0)
+                    ticker_rows.append({
+                        "Ticker": ticker,
+                        "Trades": count,
+                        "Win%": f"{t_wins/count*100:.0f}%",
+                        "P&L": f"${sum(e['pnl'] for e in t_exits):+,.2f}",
+                    })
+                st.dataframe(ticker_rows, use_container_width=True, hide_index=True)
+
+    if not events:
+        st.markdown("""
+        <div class="card" style="text-align:center;padding:40px;">
+            <div style="font-family:Orbitron;font-size:1.1rem;color:rgba(0,255,200,0.5);letter-spacing:0.2em;">
+                BOT OFFLINE
+            </div>
+            <div style="color:rgba(180,190,255,0.4);margin-top:12px;font-size:0.8rem;">
+                Start the bot with: <code>uv run python run.py</code><br>
+                Auto-starts at 08:00 ET on weekdays.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     if auto_refresh:
-        import time as _time
         _time.sleep(10)
         st.rerun()
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# BACKTEST TAB
+# ═══════════════════════════════════════════════════════════════════════════════
 with tab_run:
-    st.subheader("Test the strategy on a real recent day")
+    st.markdown('<div class="section-header">Test the strategy on a real recent day</div>', unsafe_allow_html=True)
     col_in, col_btn, col_demo = st.columns([2, 1, 1])
     ticker = col_in.text_input("Ticker", value="NVDA", label_visibility="collapsed",
                                placeholder="Ticker e.g. NVDA").strip().upper()
     run_real = col_btn.button("Run on real data", type="primary", use_container_width=True)
-    run_demo = col_demo.button("Demo (fake day)", use_container_width=True)
-    st.caption("Real data = free yfinance bars (last ~7 days, consolidated). "
-               "Trades the most recent session; earlier days warm up the indicators.")
+    run_demo = col_demo.button("Demo (synthetic)", use_container_width=True)
 
-    if run_real and ticker:
-        with st.spinner(f"Fetching {ticker} + QQQ and running the strategy…"):
+    CYAN, RED, BLUE = "#00ffc8", "#ff2d55", "#7c3aed"
+
+    def price_chart(day_bars, result):
+        s = result.state
+        fig = go.Figure(go.Candlestick(
+            x=day_bars.index,
+            open=day_bars["open"], high=day_bars["high"],
+            low=day_bars["low"], close=day_bars["close"],
+            name="price", increasing_line_color=CYAN, decreasing_line_color=RED,
+        ))
+        if s.orh:
+            fig.add_hline(y=s.orh, line_dash="dot", line_color=BLUE,
+                          annotation_text="ORH")
+        if s.orl:
+            fig.add_hline(y=s.orl, line_dash="dot", line_color=BLUE,
+                          annotation_text="ORL")
+        for t in result.trades:
+            up = t.direction.value == "long"
+            fig.add_trace(go.Scatter(
+                x=[t.entry_time], y=[float(t.entry_price)], mode="markers",
+                marker=dict(symbol="triangle-up" if up else "triangle-down",
+                            size=14, color=CYAN if up else RED),
+                name=f"Entry S{t.strike_number}",
+            ))
+            fig.add_trace(go.Scatter(
+                x=[t.exit_time], y=[float(t.exit_price)], mode="markers",
+                marker=dict(symbol="x", size=12,
+                            color=CYAN if t.realized_pnl() > 0 else RED),
+                name=f"Exit S{t.strike_number}",
+            ))
+        fig.update_layout(
+            height=480, margin=dict(t=10, b=10),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(6,6,26,1)",
+            xaxis=dict(showgrid=False, rangeslider_visible=False,
+                       color="rgba(180,190,255,0.4)"),
+            yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.04)",
+                       color="rgba(180,190,255,0.4)"),
+            legend=dict(orientation="h", y=-0.12,
+                        font=dict(color="rgba(180,190,255,0.5)", size=11)),
+        )
+        return fig
+
+    def show_result(result, day_bars):
+        s = summary_stats(result)
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Session P&L", f"${s['total_pnl']:,.2f}")
+        c2.metric("Trades", s["trades"])
+        c3.metric("Win rate", f"{s['win_rate']:.0f}%" if s["trades"] else "—")
+        c4.metric("Strikes", f"{s['strikes']} / 3")
+        if s["circuit_broken"]:
+            st.error("Daily circuit breaker tripped — trading halted.")
+        st.plotly_chart(price_chart(day_bars, result), use_container_width=True)
+        if result.trades:
+            rows = [{
+                "Strike": t.strike_number,
+                "Dir": "▲ Long" if t.direction.value == "long" else "▼ Short",
+                "Entry": f"{float(t.entry_price):.3f}",
+                "Exit": f"{float(t.exit_price):.3f}",
+                "Reason": t.exit_reason.value.replace("_", " "),
+                "P&L": f"${float(t.realized_pnl()):,.2f}",
+                "In": t.entry_time.strftime("%H:%M"),
+                "Out": t.exit_time.strftime("%H:%M"),
+            } for t in result.trades]
+            st.dataframe(rows, use_container_width=True, hide_index=True)
+        else:
+            st.info("No trades on this day.")
+
+    if run_real:
+        with st.spinner(f"Fetching {ticker} from yfinance..."):
             try:
                 result, day_bars = load_and_run_yfinance(ticker)
-                st.success(f"Ran {result.ticker} for {result.date}")
                 show_result(result, day_bars)
-            except Exception as exc:  # noqa: BLE001
-                st.error(f"Couldn't run {ticker}: {exc}\n\n"
-                         "yfinance is often rate-limited — wait a moment and retry, "
-                         "or use the Demo button.")
+            except Exception as exc:
+                st.error(f"Failed: {exc}")
     elif run_demo:
-        with st.spinner("Running the synthetic demo day…"):
-            stock, qqq = data.synthetic_session()
-            target = stock.index.normalize().unique()[-1]
-            result = run_backtest(stock, qqq, "SYNTH")
-            show_result(result, stock[stock.index.normalize() == target])
+        with st.spinner("Generating synthetic session..."):
+            stock_1m, qqq_1m = data.synthetic_session("2026-01-15", seed=42)
+            result = run_backtest(stock_1m, qqq_1m, ticker="DEMO")
+            day_bars = stock_1m[stock_1m.index.date == stock_1m.index[-1].date()]
+            show_result(result, day_bars)
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BATCH TAB
+# ═══════════════════════════════════════════════════════════════════════════════
 with tab_batch:
-    st.subheader("Does the strategy actually make money?")
-    st.caption("Runs the strategy across every recent session for each ticker and totals it up. "
-               "This is the real test of edge — one day means nothing.")
-    tickers_raw = st.text_input(
-        "Tickers (comma-separated)", value="NVDA, TSLA, AMD, AAPL, META",
-        help="A few liquid momentum names. Each is run over its last ~5 sessions.",
-    )
-    if st.button("Run batch", type="primary"):
-        tickers = [t for t in tickers_raw.split(",") if t.strip()]
-        with st.spinner(f"Running {len(tickers)} tickers across their recent sessions…"):
+    st.markdown('<div class="section-header">Multi-ticker edge study</div>', unsafe_allow_html=True)
+    st.caption("Runs the strategy over the last ~5 sessions across all tickers. "
+               "Tiny sample — not a verdict, just a smoke test.")
+    tickers_input = st.text_input("Tickers (comma-separated)", value="NVDA,TSLA,AMD,AAPL,META")
+    run_batch_btn = st.button("Run batch", type="primary")
+    if run_batch_btn:
+        tickers_list = [t.strip().upper() for t in tickers_input.split(",") if t.strip()]
+        with st.spinner("Running batch backtest..."):
             try:
-                br = batch.run_batch(tickers)
-                stats = br.stats()
-                if br.skipped:
-                    st.warning(f"Couldn't load (likely rate-limited): {', '.join(br.skipped)}")
-
-                pf = stats["profit_factor"]
-                pf_txt = "∞" if pf == float("inf") else f"{pf:.2f}"
-                a, b, c, d = st.columns(4)
-                a.metric("Total P&L", f"${stats['total_pnl']:,.2f}")
-                b.metric("Expectancy / trade", f"${stats['expectancy']:,.2f}",
-                         help="Average $ per trade over the long run. The number that matters most.")
-                c.metric("Win rate", f"{stats['win_rate']:.0f}%")
-                d.metric("Profit factor", pf_txt,
-                         help="Gross winnings ÷ gross losses. Above 1.0 = profitable.")
-                e, f, g, h = st.columns(4)
-                e.metric("Trades", stats["trades"])
-                f.metric("Avg win", f"${stats['avg_win']:,.2f}")
-                g.metric("Avg loss", f"${stats['avg_loss']:,.2f}")
-                h.metric("Sessions", f"{stats['sessions_with_trades']}/{stats['sessions']} traded")
-
-                # verdict
-                exp = stats["expectancy"]
-                if stats["trades"] == 0:
-                    st.info("No trades fired across this batch.")
-                elif exp > 0:
-                    st.success(f"📈 Positive expectancy on this sample: +${exp:,.2f}/trade. "
-                               "Encouraging — but the free-data sample is tiny. Needs deeper history before trusting it.")
-                else:
-                    st.error(f"📉 Negative expectancy on this sample: ${exp:,.2f}/trade. "
-                             "On this slice it loses money. Worth investigating before going further.")
-
-                times, cum = br.equity_curve()
-                if times:
-                    eq = go.Figure(go.Scatter(x=times, y=cum, mode="lines+markers",
-                                              line=dict(color=ET_BLUE, width=2)))
-                    eq.add_hline(y=0, line_dash="dot", line_color="gray")
-                    eq.update_layout(height=340, margin=dict(t=10, b=10),
-                                     title="Equity curve (cumulative P&L by trade)")
-                    st.plotly_chart(eq, use_container_width=True)
-
-                if stats["exit_reasons"]:
-                    er = stats["exit_reasons"]
-                    bar = go.Figure(go.Bar(x=list(er.keys()), y=list(er.values()), marker_color=ET_BLUE))
-                    bar.update_layout(height=300, margin=dict(t=10, b=10),
-                                      title="How trades exited")
-                    st.plotly_chart(bar, use_container_width=True)
-
-                rows = br.trade_rows()
-                if rows:
-                    st.dataframe(
-                        [{
-                            "Ticker": r["ticker"], "Date": r["date"],
-                            "Dir": "▲" if r["direction"] == "long" else "▼",
-                            "Entry": f"{r['entry']:.2f}", "Exit": f"{r['exit']:.2f}",
-                            "Exit reason": r["exit_reason"].replace("_", " "),
-                            "P&L": f"${r['pnl']:,.2f}",
-                        } for r in rows],
-                        use_container_width=True, hide_index=True,
+                br = batch.run_batch(tickers_list)
+                agg = batch.aggregate(br.sessions)
+                mc1, mc2, mc3, mc4 = st.columns(4)
+                mc1.metric("Sessions", agg["sessions_with_trades"])
+                mc2.metric("Total trades", agg["trades"])
+                mc3.metric("Win rate", f"{agg['win_rate']:.0f}%")
+                mc4.metric("Expectancy", f"${agg['expectancy']:+.2f}/trade")
+                mc5, mc6, mc7, mc8 = st.columns(4)
+                mc5.metric("Total P&L", f"${agg['total_pnl']:+,.2f}")
+                mc6.metric("Best trade", f"${agg['best']:+.2f}")
+                mc7.metric("Worst trade", f"${agg['worst']:+.2f}")
+                mc8.metric("Profit factor", f"{agg['profit_factor']:.2f}")
+                if agg["trades"] > 1:
+                    times, cum = batch.equity_curve(br.sessions)
+                    lc = "#00ffc8" if cum[-1] >= 0 else "#ff2d55"
+                    fig = go.Figure()
+                    fig.add_trace(go.Scatter(
+                        x=list(range(len(cum))), y=cum, mode="lines",
+                        line=dict(color=lc, width=2),
+                        fill="tozeroy",
+                        fillcolor=f"{'rgba(0,255,200,0.06)' if cum[-1]>=0 else 'rgba(255,45,85,0.06)'}",
+                    ))
+                    fig.update_layout(
+                        height=240, margin=dict(l=0, r=0, t=10, b=0),
+                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(6,6,26,1)",
+                        xaxis=dict(showgrid=False, title="Trade #",
+                                   color="rgba(180,190,255,0.4)"),
+                        yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.04)",
+                                   tickprefix="$", color="rgba(180,190,255,0.4)"),
+                        showlegend=False,
                     )
-            except Exception as exc:  # noqa: BLE001
+                    st.plotly_chart(fig, use_container_width=True)
+                verdict = "POSITIVE EDGE" if agg["expectancy"] > 0 else "NEGATIVE EDGE"
+                v_color = "#00ff88" if agg["expectancy"] > 0 else "#ff2d55"
+                st.markdown(
+                    f'<div class="card" style="text-align:center;">'
+                    f'<div style="font-family:Orbitron;font-size:1.2rem;color:{v_color};letter-spacing:0.2em;">'
+                    f'{verdict}</div>'
+                    f'<div class="card-sub">on this small sample — need 200+ trades for a real verdict</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+            except Exception as exc:
                 st.error(f"Batch failed: {exc}\n\nyfinance is often rate-limited — wait and retry.")
 
-    st.caption("⚠️ Free data = ~5 sessions/ticker. This is a smoke test of edge, not a verdict. "
-               "A real expectancy study needs the deeper history from Phase 2's paid data.")
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# STATUS + SPEC TABS
+# ═══════════════════════════════════════════════════════════════════════════════
 with tab_status:
-    st.subheader("Where the project is")
     st.markdown(_read("ROADMAP.md"))
 
 with tab_spec:
     left, right = st.columns(2)
     with left:
-        st.subheader("Open questions for the author")
+        st.subheader("Open questions")
         st.markdown(_read("docs/OPEN_QUESTIONS.md"))
     with right:
-        st.subheader("The strategy (original source)")
+        st.subheader("Original strategy")
         st.markdown(_read("docs/STRATEGY_SPEC_ORIGINAL.md"))
