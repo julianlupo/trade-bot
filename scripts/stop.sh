@@ -4,6 +4,7 @@
 
 pkill -f "streamlit run app.py" 2>/dev/null
 pkill -f "python run.py" 2>/dev/null
+pkill -f "caffeinate -i -s -t" 2>/dev/null
 
 PROJECT="$HOME/projects/trading-bot"
 echo "[$(date)] Stopped." >> "$PROJECT/logs/start.log"
