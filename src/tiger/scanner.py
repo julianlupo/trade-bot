@@ -108,7 +108,11 @@ def find_candidates(
     gappers: list[Candidate] = []
     for ticker, snap in snapshots.items():
         try:
-            prev_close = float(snap.daily_bar.close) if snap.daily_bar else None
+            # Gap is measured vs the PRIOR completed session's close.
+            # snap.daily_bar is today's (forming) bar — using it gives ~0% always.
+            # snap.previous_daily_bar is yesterday's actual close.
+            prev_bar = getattr(snap, "previous_daily_bar", None)
+            prev_close = float(prev_bar.close) if prev_bar else None
             pm_price = float(snap.latest_trade.price) if snap.latest_trade else None
             if not prev_close or not pm_price:
                 continue

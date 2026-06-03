@@ -84,11 +84,19 @@ class LiveEngine:
 
     # ── public feed ──────────────────────────────────────────────────────────
 
-    def feed_bar(self, bar: LiveBar) -> None:
+    def feed_bar(self, bar: LiveBar, execute: bool = True) -> None:
+        """Process a completed 1m bar.
+
+        When execute is False (warmup/backfill replay), all state is built —
+        opening range, indicator histories, extremes, ADX peak — but NO orders
+        are placed and positions are not managed. This lets us replay this
+        morning's real bars to lock the true opening range and warm the
+        indicators, then trade only NEW breakouts going forward.
+        """
         bar_time = bar.timestamp.time()
         if bar_time < time(9, 30) or bar_time >= time(16, 0):
             return
-        if bar_time >= time(15, 49) and not self._eod_flushed:
+        if execute and bar_time >= time(15, 49) and not self._eod_flushed:
             self._do_eod_flush(bar)
             return
 
@@ -101,10 +109,11 @@ class LiveEngine:
 
         new_5m = self._update_5m(bar)
 
-        if bar_time == time(9, 35):
+        # Opening range: accumulate high/low across the whole 09:30-09:35:59
+        # window (matches backtest OR_LOCK), then lock. No trading in-window.
+        in_or_window = bar_time <= time(9, 35, 59)
+        if in_or_window:
             self._state.update_opening_range(bar.high, bar.low)
-            log.info("[%s] OR locked: H=%.2f L=%.2f", self.ticker,
-                     self._state.orh, self._state.orl)
 
         ind = self._compute_indicators(bar)
         if ind is None:
@@ -122,9 +131,14 @@ class LiveEngine:
             self._state.update_session_adx_peak(adx_1m)
             self._session_adx_peak = max(self._session_adx_peak, adx_1m)
 
+        # No trading during the opening-range window or during warmup replay
+        if in_or_window or not execute:
+            self._prev_close = bar.close
+            return
+
         if self._state.in_position:
             self._manage_position(bar, ind, new_5m)
-        elif self._state.can_open_new_strike and bar_time >= time(9, 36):
+        elif self._state.can_open_new_strike:
             self._try_entry(bar, ind)
 
         self._prev_close = bar.close

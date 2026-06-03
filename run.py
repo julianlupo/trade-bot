@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, time as dtime
 from zoneinfo import ZoneInfo
 
 from tiger.bars import BarStream
@@ -59,11 +59,28 @@ def main() -> None:
     # ── Step 2: build one LiveEngine per target ticker ───────────────────────
     engines: dict[str, LiveEngine] = {t: LiveEngine(t) for t in tickers}
 
+    # ── Step 2.5: mid-session backfill ───────────────────────────────────────
+    # If we're starting after the opening range window, replay today's bars in
+    # warmup mode so the opening range locks and indicators warm up. No orders
+    # are placed during backfill — only NEW breakouts trade going forward.
+    market_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    market_close = now.replace(hour=16, minute=0, second=0, microsecond=0)
+    if market_open < now < market_close and now.time() > dtime(9, 36):
+        log.info("Mid-session start detected — backfilling today's bars (warmup only)...")
+        try:
+            from tiger.backfill import warmup_engines
+            warmup_engines(engines)
+        except Exception as exc:
+            log.error("Backfill failed: %s — continuing with live bars only.", exc)
+
     # ── Step 3: start bar stream ─────────────────────────────────────────────
     stream = BarStream(stream_tickers)
     stream.start()
 
-    log.info("Waiting for market open (09:30 ET)...")
+    if now < market_open:
+        log.info("Waiting for market open (09:30 ET)...")
+    else:
+        log.info("Streaming live bars — trading new breakouts.")
 
     try:
         while True:
