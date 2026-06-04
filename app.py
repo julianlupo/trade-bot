@@ -319,15 +319,26 @@ with tab_live:
     entries = [e for e in events if e["type"] == "entry"]
     exits = [e for e in events if e["type"] == "exit"]
     open_strike = entries[-1] if len(entries) > len(exits) else None
-    daily_pnl = exits[-1]["daily_pnl"] if exits else 0.0
     all_exits = [e for e in all_events if e["type"] == "exit"]
+
+    # Today's P&L: pull the REAL account number from Alpaca (equity - last_equity).
+    # The per-engine log estimates measure from limit prices and silo by ticker,
+    # so they diverge from the true account P&L. Fall back to the estimate if
+    # Alpaca is unreachable.
+    daily_pnl_source = "Alpaca (real)"
+    try:
+        from tiger import broker
+        daily_pnl = float(broker.get_account_pnl())
+    except Exception:
+        daily_pnl = sum(e["pnl"] for e in exits)
+        daily_pnl_source = "estimate"
 
     # ── Top metrics row ──────────────────────────────────────────────────────
     c1, c2, c3, c4, c5 = st.columns(5)
     pnl_color = "card-value" if daily_pnl >= 0 else "card-value card-value-red"
     pnl_sign = "+" if daily_pnl >= 0 else ""
     c1.markdown(_card("TODAY P&L", f"{pnl_sign}${daily_pnl:,.2f}",
-                      danger=daily_pnl < 0), unsafe_allow_html=True)
+                      sub=daily_pnl_source, danger=daily_pnl < 0), unsafe_allow_html=True)
     c2.markdown(_card("TRADES TODAY", str(len(exits)),
                       sub=f"{len(entries) - len(exits)} open"), unsafe_allow_html=True)
     win_today = len([e for e in exits if e["pnl"] > 0])
