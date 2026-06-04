@@ -82,6 +82,12 @@ def main() -> None:
     else:
         log.info("Streaming live bars — trading new breakouts.")
 
+    from tiger import broker
+    from decimal import Decimal
+    ACCOUNT_DAILY_LIMIT = Decimal("-1500")  # account-wide, across all tickers
+    account_halted = False
+    last_pnl_check = 0.0
+
     try:
         while True:
             now = datetime.now(ET)
@@ -94,6 +100,26 @@ def main() -> None:
             bar = stream.get(timeout=10)
             if bar is None:
                 continue
+
+            # Account-wide circuit breaker: the per-ticker engines each have
+            # their own -$1,500 limit, but the ACCOUNT can lose more across
+            # several tickers. Check the real Alpaca account P&L (throttled to
+            # once every ~30s) and halt every engine if the account breaches.
+            if not account_halted:
+                tick = time.monotonic()
+                if tick - last_pnl_check > 30:
+                    last_pnl_check = tick
+                    try:
+                        acct_pnl = broker.get_account_pnl()
+                        if acct_pnl <= ACCOUNT_DAILY_LIMIT:
+                            account_halted = True
+                            for eng in engines.values():
+                                eng._state.circuit_broken = True
+                            log.warning("ACCOUNT CIRCUIT BREAKER — real P&L %.2f <= %.2f. "
+                                        "All engines halted for the day.",
+                                        float(acct_pnl), float(ACCOUNT_DAILY_LIMIT))
+                    except Exception as exc:
+                        log.warning("Account P&L check failed: %s", exc)
 
             if bar.ticker == "QQQ":
                 for engine in engines.values():
