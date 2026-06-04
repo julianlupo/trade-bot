@@ -17,29 +17,44 @@ from tiger import logger
 
 ET = ZoneInfo("America/New_York")
 
-# Liquid universe — covers most intraday momentum movers
+# Liquid universe — covers most intraday momentum movers.
+# Expanded for more shots on goal: high-beta, high-volume names that gap
+# on news. Kept to liquid names only (tight spreads, reliable fills).
 UNIVERSE = [
     # Mega-cap tech
-    "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN", "META", "TSLA",
-    "AMD", "AVGO", "ORCL", "CRM", "ADBE", "QCOM", "INTC",
-    # High-momentum names
-    "SMCI", "ARM", "PLTR", "MSTR", "COIN", "HOOD", "RBLX",
-    "SOFI", "UPST", "AFRM", "SNAP", "UBER", "LYFT",
+    "AAPL", "MSFT", "NVDA", "GOOGL", "GOOG", "AMZN", "META", "TSLA",
+    "AMD", "AVGO", "ORCL", "CRM", "ADBE", "QCOM", "INTC", "MU", "TXN",
+    "NFLX", "CSCO", "AMAT", "LRCX", "KLAC", "ADI", "MRVL", "NXPI",
+    # High-momentum / retail favorites
+    "SMCI", "ARM", "PLTR", "MSTR", "COIN", "HOOD", "RBLX", "DKNG",
+    "SOFI", "UPST", "AFRM", "SNAP", "UBER", "LYFT", "ABNB", "DASH",
+    "SHOP", "SQ", "PYPL", "ROKU", "PINS", "DDOG", "NET", "SNOW",
+    "CRWD", "ZS", "PANW", "FTNT", "ANET", "DELL", "WDC", "ON",
+    # AI / semis / power
+    "TSM", "ASML", "MRVL", "VST", "CEG", "SMR", "OKLO",
+    # EV / auto
+    "RIVN", "LCID", "NIO", "F", "GM",
     # Biotech / pharma (frequent gap-on-news)
     "MRNA", "BNTX", "BIIB", "VRTX", "REGN", "GILD", "LLY",
-    "ABBV", "PFE", "BMY",
+    "ABBV", "PFE", "BMY", "AMGN", "NVO",
     # Energy
-    "XOM", "CVX", "OXY",
+    "XOM", "CVX", "OXY", "SLB", "COP", "MPC", "FANG",
     # Financials
-    "JPM", "BAC", "GS", "MS", "C",
-    # Consumer
-    "NKE", "SBUX", "MCD", "CMG", "LULU",
+    "JPM", "BAC", "GS", "MS", "C", "WFC", "SCHW",
+    # Consumer / retail
+    "NKE", "SBUX", "MCD", "CMG", "LULU", "TGT", "COST", "WMT",
+    "DIS", "WBD",
     # Industrials / defense
-    "BA", "RTX", "LMT", "GE", "CAT",
+    "BA", "RTX", "LMT", "GE", "CAT", "DE",
+    # Crypto-adjacent
+    "MARA", "RIOT", "CLSK",
 ]
+# De-dupe while preserving order (MRVL appears twice above by category).
+UNIVERSE = list(dict.fromkeys(UNIVERSE))
 
 MIN_GAP_PCT = 0.04   # 4% minimum gap to qualify
-MAX_CANDIDATES = 3   # how many tickers to hand to the live engine
+MAX_CANDIDATES = 5   # how many tickers to hand to the live engine
+                     # (total downside still capped by the account-wide breaker)
 
 
 @dataclass
