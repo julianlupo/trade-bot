@@ -57,7 +57,15 @@ def main() -> None:
     log.info("Subscribing to bars for: %s", stream_tickers)
 
     # ── Step 2: build one LiveEngine per target ticker ───────────────────────
-    engines: dict[str, LiveEngine] = {t: LiveEngine(t) for t in tickers}
+    # ALARM_D_SCOPE env var picks the Alarm D reference peak:
+    #   "session" (default/literal spec) or "strike" (per-trade test — lets
+    #   winners run). Set in .env to switch without code changes.
+    import os
+    alarm_d_scope = os.getenv("ALARM_D_SCOPE", "session").lower()
+    log.info("Alarm D scope: %s", alarm_d_scope)
+    engines: dict[str, LiveEngine] = {
+        t: LiveEngine(t, alarm_d_scope=alarm_d_scope) for t in tickers
+    }
 
     # ── Step 2.5: mid-session backfill ───────────────────────────────────────
     # If we're starting after the opening range window, replay today's bars in

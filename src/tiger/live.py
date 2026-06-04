@@ -41,9 +41,16 @@ class LiveEngine:
     Call feed_qqq_bar(bar) for each completed QQQ 1m bar.
     """
 
-    def __init__(self, ticker: str, trade_date: date | None = None):
+    def __init__(self, ticker: str, trade_date: date | None = None,
+                 alarm_d_scope: str = "session"):
         self.ticker = ticker
         self.trade_date = trade_date or datetime.now(ET).date()
+        # Alarm D HVP lock reference peak:
+        #   "session" = highest 5m ADX of the whole day (literal spec reading)
+        #   "strike"  = highest 5m ADX since THIS trade was entered (per-trade)
+        # The per-trade reading lets winners run instead of being cut ~1 min in.
+        # OPEN QUESTION for the strategy author — running "strike" as a test.
+        self._alarm_d_scope = alarm_d_scope
 
         self._opens: deque[float] = deque(maxlen=HISTORY_LEN)
         self._highs: deque[float] = deque(maxlen=HISTORY_LEN)
@@ -338,8 +345,16 @@ class LiveEngine:
                 self._exit(bar, "ALARM B")
                 return
 
-        if ind["adx_5m"] and self._state.session_peak_5m_adx:
-            d = alarms.alarm_d_hvp_lock(ind["adx_5m"], self._state.session_peak_5m_adx)
+        # Track this trade's own peak 5m ADX (for the per-strike Alarm D test).
+        if ind["adx_5m"] and ind["adx_5m"] > strike.trade_hvp_5m_adx:
+            strike.trade_hvp_5m_adx = ind["adx_5m"]
+
+        if self._alarm_d_scope == "strike":
+            d_peak = strike.trade_hvp_5m_adx
+        else:
+            d_peak = self._state.session_peak_5m_adx
+        if ind["adx_5m"] and d_peak:
+            d = alarms.alarm_d_hvp_lock(ind["adx_5m"], d_peak)
             if d.action == alarms.AlarmAction.EXIT:
                 self._exit(bar, "ALARM D")
                 return
