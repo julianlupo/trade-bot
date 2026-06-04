@@ -32,10 +32,15 @@ def entry_limit_price(direction: Direction, reference: Decimal) -> Decimal:
 
     ``reference`` is the ask (long) or bid (short). In backtest we approximate
     both with the bar close.
+
+    Rounded to whole cents: US equities >= $1 must be priced in penny
+    increments, and a sub-penny limit price is rejected by the broker.
     """
     if direction is Direction.LONG:
-        return reference * (Decimal(1) + ENTRY_SLIPPAGE)
-    return reference * (Decimal(1) - ENTRY_SLIPPAGE)
+        raw = reference * (Decimal(1) + ENTRY_SLIPPAGE)
+    else:
+        raw = reference * (Decimal(1) - ENTRY_SLIPPAGE)
+    return raw.quantize(Decimal("0.01"))
 
 
 def hard_stop_price(

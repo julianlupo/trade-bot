@@ -267,10 +267,18 @@ class LiveEngine:
 
             stop_px = risk.hard_stop_price(direction, limit_px, shares)
 
+            # Submit the order FIRST. Only register the position if the broker
+            # accepted it — otherwise the engine would track a phantom position
+            # that doesn't exist on Alpaca.
             if direction == Direction.LONG:
-                broker.buy_limit(self.ticker, shares, limit_px)
+                order_id = broker.buy_limit(self.ticker, shares, limit_px)
             else:
-                broker.sell_short_limit(self.ticker, shares, limit_px)
+                order_id = broker.sell_short_limit(self.ticker, shares, limit_px)
+
+            if order_id is None:
+                log.warning("[%s] ENTRY %s aborted — broker rejected the order.",
+                            self.ticker, direction.value)
+                continue
 
             strike = StrikeState(
                 strike_number=self._state.strikes_taken + 1,
@@ -382,18 +390,23 @@ class LiveEngine:
                 add_shares = strike.shares
                 limit_px = risk.entry_limit_price(direction, Decimal(str(close)))
                 if direction == Direction.LONG:
-                    broker.buy_limit(self.ticker, add_shares, limit_px)
+                    order_id = broker.buy_limit(self.ticker, add_shares, limit_px)
                 else:
-                    broker.sell_short_limit(self.ticker, add_shares, limit_px)
-                blended = risk.blended_entry_price(
-                    strike.entry_price, strike.shares, limit_px, add_shares)
-                strike.shares += add_shares
-                strike.entry_price = blended
-                strike.stop_price = risk.hard_stop_price(direction, blended, strike.shares)
-                strike.is_full_filled = True
-                log.info("[%s] SCALE-IN %s +%d blended=%.2f new_stop=%.2f",
-                         self.ticker, direction.value, add_shares,
-                         float(blended), float(strike.stop_price))
+                    order_id = broker.sell_short_limit(self.ticker, add_shares, limit_px)
+                if order_id is None:
+                    log.warning("[%s] SCALE-IN aborted — broker rejected the order.", self.ticker)
+                else:
+                    blended = risk.blended_entry_price(
+                        strike.entry_price, strike.shares, limit_px, add_shares)
+                    strike.shares += add_shares
+                    strike.entry_price = blended
+                    strike.stop_price = risk.hard_stop_price(direction, blended, strike.shares)
+                    strike.is_full_filled = True
+                    logger.log_scale_in(self.ticker, direction.value, add_shares,
+                                        float(blended), float(strike.stop_price))
+                    log.info("[%s] SCALE-IN %s +%d blended=%.2f new_stop=%.2f",
+                             self.ticker, direction.value, add_shares,
+                             float(blended), float(strike.stop_price))
 
     def _exit(self, bar: LiveBar, reason: str) -> None:
         strike = self._state.open_strike
