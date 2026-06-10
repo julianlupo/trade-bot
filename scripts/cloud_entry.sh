@@ -3,11 +3,8 @@
 set -e
 cd /app
 
-# One-time seed: if the volume is fresh, carry over the laptop-era history
-for f in seed_data/*.jsonl; do
-    base=$(basename "$f")
-    [ -f "data/$base" ] || cp "$f" "data/$base"
-done
+# Seed/merge laptop-era history into the volume (idempotent)
+uv run python scripts/seed_merge.py
 
 # Dashboard on Railway's $PORT
 uv run streamlit run app.py \
