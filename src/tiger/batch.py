@@ -110,7 +110,8 @@ def equity_curve(sessions: list[SessionResult]):
     return times, cum
 
 
-def run_batch(tickers: list[str], period: str = "5d", alarm_d_scope: str = "session") -> BatchResult:
+def run_batch(tickers: list[str], period: str = "5d", alarm_d_scope: str = "session",
+              exit_mode: str = "alarms") -> BatchResult:
     """Run every shared session for each ticker against QQQ. Network (yfinance)."""
     from tiger import data
 
@@ -131,7 +132,8 @@ def run_batch(tickers: list[str], period: str = "5d", alarm_d_scope: str = "sess
         for d in days:
             try:
                 result.sessions.append(
-                    run_backtest(stock, qqq, tk, target_date=d, alarm_d_scope=alarm_d_scope)
+                    run_backtest(stock, qqq, tk, target_date=d,
+                                 alarm_d_scope=alarm_d_scope, exit_mode=exit_mode)
                 )
             except Exception:  # noqa: BLE001 - a bad day shouldn't kill the batch
                 continue

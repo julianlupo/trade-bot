@@ -42,7 +42,7 @@ class LiveEngine:
     """
 
     def __init__(self, ticker: str, trade_date: date | None = None,
-                 alarm_d_scope: str = "session"):
+                 alarm_d_scope: str = "session", exit_mode: str = "alarms"):
         self.ticker = ticker
         self.trade_date = trade_date or datetime.now(ET).date()
         # Alarm D HVP lock reference peak:
@@ -51,6 +51,14 @@ class LiveEngine:
         # The per-trade reading lets winners run instead of being cut ~1 min in.
         # OPEN QUESTION for the strategy author — running "strike" as a test.
         self._alarm_d_scope = alarm_d_scope
+        # Exit mode (evidence-based variant vs original):
+        #   "alarms" = ORIGINAL: hard stop + ratchet tightening (C/E) + alarms B/D
+        #   "run"    = LET WINNERS RUN: hard $500 stop (risk cap) + alarms B/D +
+        #              EOD, but NO ratchet tightening. Our data shows the ratchet
+        #              stop is the loss center (-$2,125 / 39 trades) while the
+        #              alarm exits are profitable; research (Kaminski-Lo) says
+        #              tight trailing = death-by-cuts. This tests removing it.
+        self._exit_mode = exit_mode
 
         self._opens: deque[float] = deque(maxlen=HISTORY_LEN)
         self._highs: deque[float] = deque(maxlen=HISTORY_LEN)
@@ -359,29 +367,36 @@ class LiveEngine:
                 self._exit(bar, "ALARM D")
                 return
 
-        if len(self._recent_1m_adx) >= 4:
-            c = alarms.alarm_c_tiger_grip(list(self._recent_1m_adx)[-4:])
-            if c.action == alarms.AlarmAction.RATCHET:
+        # Ratchet tightening (Alarms C and E) — ONLY in "alarms" mode.
+        # In "run" mode we deliberately skip these: the ratchet stop is the
+        # documented loss center, so we let the trade run to its hard stop,
+        # an alarm B/D exit, or EOD instead of getting cut on a pullback.
+        if self._exit_mode == "alarms":
+            if len(self._recent_1m_adx) >= 4:
+                c = alarms.alarm_c_tiger_grip(list(self._recent_1m_adx)[-4:])
+                if c.action == alarms.AlarmAction.RATCHET:
+                    new_stop = risk.ratchet_stop(direction, Decimal(str(close)), strike.stop_price)
+                    if new_stop != strike.stop_price:
+                        old = strike.stop_price
+                        strike.stop_price = new_stop
+                        strike.stop_source = "ratchet_c"
+                        log.info("[%s] Alarm C ratchet → %.2f", self.ticker, float(new_stop))
+                        logger.log_ratchet(self.ticker, direction.value,
+                                           float(old), float(new_stop), "alarm_c")
+
+            e = alarms.alarm_e_divergence(
+                direction, close, ind["rsi_1m"],
+                self._state.stored_peak_price, self._state.stored_peak_rsi,
+            )
+            if e.action == alarms.AlarmAction.RATCHET:
                 new_stop = risk.ratchet_stop(direction, Decimal(str(close)), strike.stop_price)
                 if new_stop != strike.stop_price:
+                    old = strike.stop_price
                     strike.stop_price = new_stop
-                    strike.stop_source = "ratchet_c"
-                    log.info("[%s] Alarm C ratchet → %.2f", self.ticker, float(new_stop))
+                    strike.stop_source = "ratchet_e"
+                    log.info("[%s] Alarm E ratchet → %.2f", self.ticker, float(new_stop))
                     logger.log_ratchet(self.ticker, direction.value,
-                                       float(strike.stop_price), float(new_stop), "alarm_c")
-
-        e = alarms.alarm_e_divergence(
-            direction, close, ind["rsi_1m"],
-            self._state.stored_peak_price, self._state.stored_peak_rsi,
-        )
-        if e.action == alarms.AlarmAction.RATCHET:
-            new_stop = risk.ratchet_stop(direction, Decimal(str(close)), strike.stop_price)
-            if new_stop != strike.stop_price:
-                strike.stop_price = new_stop
-                strike.stop_source = "ratchet_e"
-                log.info("[%s] Alarm E ratchet → %.2f", self.ticker, float(new_stop))
-                logger.log_ratchet(self.ticker, direction.value,
-                                   float(strike.stop_price), float(new_stop), "alarm_e")
+                                       float(old), float(new_stop), "alarm_e")
 
         if direction == Direction.LONG and close > (self._state.stored_peak_price or 0):
             self._state.stored_peak_price = close

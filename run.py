@@ -62,10 +62,24 @@ def main() -> None:
     #   winners run). Set in .env to switch without code changes.
     import os
     alarm_d_scope = os.getenv("ALARM_D_SCOPE", "session").lower()
-    log.info("Alarm D scope: %s", alarm_d_scope)
+    exit_mode = os.getenv("EXIT_MODE", "alarms").lower()
+    log.info("Alarm D scope: %s | Exit mode: %s", alarm_d_scope, exit_mode)
     engines: dict[str, LiveEngine] = {
-        t: LiveEngine(t, alarm_d_scope=alarm_d_scope) for t in tickers
+        t: LiveEngine(t, alarm_d_scope=alarm_d_scope, exit_mode=exit_mode)
+        for t in tickers
     }
+
+    # ── Step 2.1: startup reconciliation (SAFETY) ────────────────────────────
+    # The engine always starts assuming FLAT. If Alpaca shows pre-existing
+    # positions (e.g. a prior instance died, or something carried overnight),
+    # flatten them now so we begin from a known-clean state. This prevents
+    # orphaned positions and double-trading on the same ticker.
+    from tiger import broker
+    existing = broker.list_open_positions()
+    if existing:
+        log.warning("Startup: found pre-existing positions %s — flattening for a "
+                    "clean start (engine assumes flat).", existing)
+        broker.close_all_positions()
 
     # ── Step 2.5: mid-session backfill ───────────────────────────────────────
     # If we're starting after the opening range window, replay today's bars in

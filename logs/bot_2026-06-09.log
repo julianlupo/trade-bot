@@ -1,0 +1,163 @@
+09:11:36  INFO     Tiger Sovereign starting — 2026-06-09 09:11 ET
+09:11:36  INFO     Running pre-market scan...
+09:11:37  INFO     Subscribing to bars for: ['QQQ', 'MU', 'INTC', 'MRVL', 'COIN', 'CLSK']
+09:11:37  INFO     Alarm D scope: strike
+09:11:37  INFO     BarStream started for ['QQQ', 'MU', 'INTC', 'MRVL', 'COIN', 'CLSK']
+09:11:37  INFO     Waiting for market open (09:30 ET)...
+09:11:37  INFO     started data stream
+09:11:37  INFO     starting data websocket connection
+09:11:37  INFO     connecting to wss://stream.data.alpaca.markets/v2/iex
+09:11:37  INFO     connected to wss://stream.data.alpaca.markets/v2/iex
+09:11:37  INFO     subscribed to bars: ['CLSK', 'COIN', 'INTC', 'MRVL', 'MU', 'QQQ']
+11:20:00  INFO     SELL SHORT LIMIT COIN 159 @ 157.14  order_id=7b955262-754b-4dd6-83d7-ffaec317bc1e
+11:20:00  INFO     [COIN] ENTRY short qty=159 limit=157.14 stop=160.28 strike=1
+11:23:00  INFO     SELL SHORT LIMIT MRVL 94 @ 265.07  order_id=d16e4ef4-acab-4c6c-8a0e-01de8ce7ad5a
+11:23:00  INFO     [MRVL] ENTRY short qty=94 limit=265.07 stop=270.39 strike=1
+11:23:00  INFO     SELL SHORT LIMIT CLSK 1541 @ 16.22  order_id=3686a86a-8b36-4a8f-845f-e51923a8d4b1
+11:23:00  INFO     [CLSK] ENTRY short qty=1541 limit=16.22 stop=16.54 strike=1
+11:24:00  INFO     SELL SHORT LIMIT MU 27 @ 922.52  order_id=edb92fe0-6c8a-4634-aedc-303e46ffb921
+11:24:00  INFO     [MU] ENTRY short qty=27 limit=922.52 stop=941.04 strike=1
+11:30:01  INFO     SELL SHORT LIMIT INTC 236 @ 105.56  order_id=d9b3c94a-9dbc-469a-a800-69703004a1b8
+11:30:01  INFO     [INTC] ENTRY short qty=236 limit=105.56 stop=107.68 strike=1
+11:42:00  INFO     [MRVL] Alarm C ratchet → 262.31
+11:42:00  INFO     [CLSK] Alarm C ratchet → 16.13
+11:42:00  INFO     [INTC] Alarm C ratchet → 106.57
+11:42:00  INFO     [COIN] Alarm C ratchet → 155.81
+11:43:00  INFO     [MU] Alarm C ratchet → 915.67
+11:43:00  INFO     MARKET EXIT MRVL  order_id=cefac70d-d420-4b51-bed0-05d37470a386
+11:43:00  INFO     [MRVL] EXIT short reason=HARD/RATCHET STOP pnl=166.38 daily_pnl=166.38
+11:43:00  INFO     [CLSK] Alarm C ratchet → 16.12
+11:43:00  INFO     MARKET EXIT INTC  order_id=b2fdafb3-dc97-428e-bc67-90a582a6400c
+11:43:00  INFO     [INTC] EXIT short reason=HARD/RATCHET STOP pnl=-247.80 daily_pnl=-247.80
+11:44:00  INFO     [COIN] Alarm C ratchet → 155.67
+11:44:00  INFO     [MU] Alarm C ratchet → 912.66
+11:44:00  INFO     [CLSK] Alarm C ratchet → 16.11
+11:45:00  INFO     [MU] Alarm C ratchet → 910.80
+11:45:01  INFO     SELL SHORT LIMIT INTC 117 @ 105.97  order_id=dcb39818-f536-45f9-a69c-738603ff22a1
+11:45:01  INFO     [INTC] ENTRY short qty=117 limit=105.97 stop=110.24 strike=2
+11:45:01  INFO     [CLSK] Alarm C ratchet → 16.07
+11:46:00  INFO     [INTC] Alarm C ratchet → 106.34
+11:46:00  INFO     [COIN] Alarm C ratchet → 155.62
+11:46:00  INFO     MARKET EXIT CLSK  order_id=e022ca49-1d34-4047-8bea-5340b1007b35
+11:46:00  INFO     [CLSK] EXIT short reason=HARD/RATCHET STOP pnl=200.33 daily_pnl=200.33
+11:46:00  INFO     [MU] Alarm C ratchet → 910.54
+11:47:00  INFO     MARKET EXIT MU  order_id=4abd9ddb-9310-4ba0-8d3a-e6058e3bb423
+11:47:00  INFO     [MU] EXIT short reason=HARD/RATCHET STOP pnl=335.88 daily_pnl=335.88
+11:48:00  INFO     [INTC] Alarm C ratchet → 106.23
+11:49:00  INFO     [COIN] Alarm C ratchet → 155.53
+11:50:00  INFO     SELL SHORT LIMIT CLSK 780 @ 16.02  order_id=ccf32e62-a6a9-4513-8aaa-82aa225bac73
+11:50:00  INFO     [CLSK] ENTRY short qty=780 limit=16.02 stop=16.66 strike=2
+11:51:00  INFO     [CLSK] Alarm C ratchet → 16.06
+11:52:00  INFO     MARKET EXIT CLSK  order_id=2f7f37b8-821c-4a43-b344-746d151c649a
+11:52:00  INFO     [CLSK] EXIT short reason=HARD/RATCHET STOP pnl=-66.30 daily_pnl=134.03
+11:52:00  INFO     MARKET EXIT INTC  order_id=4ebeaa17-257a-4175-bd5a-5928c3570c16
+11:52:00  INFO     [INTC] EXIT short reason=HARD/RATCHET STOP pnl=-46.80 daily_pnl=-294.60
+11:55:00  INFO     SELL SHORT LIMIT MU 13 @ 901.10  order_id=31a6fbfc-88f8-421c-9cec-3a6033f354df
+11:55:00  INFO     [MU] ENTRY short qty=13 limit=901.10 stop=939.56 strike=2
+11:55:00  INFO     SELL SHORT LIMIT INTC 238 @ 104.90  order_id=36d4354d-154b-47d4-b77e-52d9f9e46979
+11:55:00  INFO     [INTC] ENTRY short qty=238 limit=104.90 stop=107.00 strike=3
+11:56:00  INFO     SELL SHORT LIMIT CLSK 1574 @ 15.88  order_id=f5cbfdc7-b515-4bb4-bb29-59b6b7bb0a2c
+11:56:00  INFO     [CLSK] ENTRY short qty=1574 limit=15.88 stop=16.20 strike=3
+11:56:01  INFO     SELL SHORT LIMIT MU 13 @ 897.62  order_id=460ec3ac-4463-4ef8-8b59-dbde5115c3ef
+11:56:01  INFO     [MU] SCALE-IN short +13 blended=899.36 new_stop=918.59
+11:57:00  INFO     SELL SHORT LIMIT MRVL 97 @ 256.96  order_id=3a1d2357-b63c-44a9-bd4e-eb84d9a4cefa
+11:57:00  INFO     [MRVL] ENTRY short qty=97 limit=256.96 stop=262.11 strike=2
+12:04:00  INFO     [MU] Alarm C ratchet → 893.96
+12:05:00  INFO     [MU] Alarm C ratchet → 893.36
+12:24:00  INFO     [MU] Alarm C ratchet → 872.02
+12:24:00  INFO     [INTC] Alarm C ratchet → 101.85
+12:25:00  INFO     MARKET EXIT INTC  order_id=18ec95b4-8ce9-4b61-b1be-1162acd9beb6
+12:25:00  INFO     [INTC] EXIT short reason=HARD/RATCHET STOP pnl=672.35 daily_pnl=377.75
+12:25:00  INFO     [MRVL] Alarm C ratchet → 250.00
+12:25:01  INFO     MARKET EXIT MU  order_id=a57b5d7e-8669-49ea-8452-73134d9c1977
+12:25:01  INFO     [MU] EXIT short reason=HARD/RATCHET STOP pnl=659.88 daily_pnl=995.76
+12:26:00  INFO     SELL SHORT LIMIT MU 28 @ 877.81  order_id=bd7c5f86-9e3d-4630-92f8-529f767efad4
+12:26:00  INFO     [MU] ENTRY short qty=28 limit=877.81 stop=895.67 strike=3
+12:26:01  WARNING  close_position MRVL failed: {"code":40410000,"message":"position not found: MRVL"}
+12:26:01  INFO     [MRVL] EXIT short reason=HARD/RATCHET STOP pnl=614.01 daily_pnl=780.39
+12:27:00  INFO     [MU] Alarm C ratchet → 875.19
+12:27:00  INFO     SELL SHORT LIMIT MRVL 50 @ 249.33  order_id=de92ff13-5240-4eff-bba8-07d22dc36e58
+12:27:00  INFO     [MRVL] ENTRY short qty=50 limit=249.33 stop=259.33 strike=3
+12:27:00  INFO     [CLSK] Alarm C ratchet → 15.45
+12:28:00  INFO     [MRVL] Alarm C ratchet → 250.45
+12:29:00  INFO     [MU] Alarm C ratchet → 875.12
+12:29:01  INFO     MARKET EXIT MRVL  order_id=2a6bedcd-09aa-4230-9aec-df4133cc739d
+12:29:01  INFO     [MRVL] EXIT short reason=HARD/RATCHET STOP pnl=-83.50 daily_pnl=696.89
+12:30:00  INFO     [COIN] Alarm C ratchet → 152.37
+12:31:00  INFO     [CLSK] Alarm C ratchet → 15.38
+12:31:00  INFO     [COIN] Alarm C ratchet → 151.88
+12:31:00  INFO     [MU] Alarm C ratchet → 869.04
+12:32:00  INFO     MARKET EXIT MU  order_id=5a537dbc-ebb5-4695-979f-088b936efea1
+12:32:00  INFO     [MU] EXIT short reason=HARD/RATCHET STOP pnl=190.12 daily_pnl=1185.88
+12:32:01  INFO     MARKET EXIT COIN  order_id=3b3002ae-f9a4-410f-8dd8-e0558aaef7d9
+12:32:01  INFO     [COIN] EXIT short reason=HARD/RATCHET STOP pnl=829.98 daily_pnl=829.98
+12:32:01  INFO     MARKET EXIT CLSK  order_id=588131cb-57f2-49da-a4b2-fde037a7985f
+12:32:01  INFO     [CLSK] EXIT short reason=HARD/RATCHET STOP pnl=739.78 daily_pnl=873.81
+12:33:00  INFO     SELL SHORT LIMIT COIN 164 @ 152.12  order_id=5cd6667b-cd0e-4aa1-9d72-426d1f2eacad
+12:33:00  INFO     [COIN] ENTRY short qty=164 limit=152.12 stop=155.17 strike=2
+12:35:00  INFO     [COIN] Alarm C ratchet → 152.51
+12:37:00  INFO     MARKET EXIT COIN  order_id=607a326c-a33f-41c8-9b6f-a3166d553fd6
+12:37:00  INFO     [COIN] EXIT short reason=HARD/RATCHET STOP pnl=-82.00 daily_pnl=747.98
+12:39:00  INFO     SELL SHORT LIMIT COIN 166 @ 150.53  order_id=a671280d-0c1c-447c-8d0a-2808a9e9291d
+12:39:00  INFO     [COIN] ENTRY short qty=166 limit=150.53 stop=153.54 strike=3
+12:47:00  INFO     [COIN] Alarm C ratchet → 150.77
+12:49:00  INFO     [COIN] Alarm C ratchet → 150.74
+12:56:00  INFO     [COIN] Alarm C ratchet → 150.53
+12:57:00  INFO     MARKET EXIT COIN  order_id=79322e69-dc69-49f8-b713-acfc27deff76
+12:57:00  INFO     [COIN] EXIT short reason=HARD/RATCHET STOP pnl=-19.92 daily_pnl=728.06
+15:37:04  WARNING  data websocket error, restarting connection: no close frame received or sent
+15:37:04  INFO     starting data websocket connection
+15:37:04  INFO     connecting to wss://stream.data.alpaca.markets/v2/iex
+15:37:04  INFO     connected to wss://stream.data.alpaca.markets/v2/iex
+15:37:04  INFO     subscribed to bars: ['CLSK', 'COIN', 'INTC', 'MRVL', 'MU', 'QQQ']
+16:00:00  INFO     Market closed. Shutting down.
+16:00:00  INFO     BarStream stopped.
+16:00:00  INFO     Done.
+[scanner] 2026-06-09 09:11 ET — scanning 113 tickers...
+[scanner] 5 candidate(s):
+
+  MU      gap=+15.0%  prev=865.00  pm=994.36  [LONG] | Why Is Intel Stock Gaining Tuesday?
+  INTC    gap=+14.7%  prev=98.97  pm=113.49  [LONG] | Why Is Intel Stock Gaining Tuesday?
+  MRVL    gap=+13.9%  prev=263.46  pm=300.16  [LONG] | Why Is Intel Stock Gaining Tuesday?
+  COIN    gap=+6.4%  prev=152.43  pm=162.18  [LONG] | Institutions Don't Mind Scooping Up Bitcoin At A Discount, Says Top Co
+  CLSK    gap=+5.9%  prev=15.61  pm=16.53  [LONG] | Cleanspark Stock Jumps After Chardan Raises Target
+
+==================================================
+  MU — end of day
+  Trades: 3  |  P&L: $+1185.88
+==================================================
+  Strike 1: SHORT  entry=922.52  exit=910.08  pnl=$+335.88  reason=HARD/RATCHET STOP
+  Strike 2: SHORT  entry=899.36  exit=873.98  pnl=$+659.88  reason=HARD/RATCHET STOP
+  Strike 3: SHORT  entry=877.81  exit=871.02  pnl=$+190.12  reason=HARD/RATCHET STOP
+
+==================================================
+  INTC — end of day
+  Trades: 3  |  P&L: $+377.75
+==================================================
+  Strike 1: SHORT  entry=105.56  exit=106.61  pnl=$-247.80  reason=HARD/RATCHET STOP
+  Strike 2: SHORT  entry=105.97  exit=106.37  pnl=$-46.80  reason=HARD/RATCHET STOP
+  Strike 3: SHORT  entry=104.90  exit=102.08  pnl=$+672.35  reason=HARD/RATCHET STOP
+
+==================================================
+  MRVL — end of day
+  Trades: 3  |  P&L: $+696.89
+==================================================
+  Strike 1: SHORT  entry=265.07  exit=263.30  pnl=$+166.38  reason=HARD/RATCHET STOP
+  Strike 2: SHORT  entry=256.96  exit=250.63  pnl=$+614.01  reason=HARD/RATCHET STOP
+  Strike 3: SHORT  entry=249.33  exit=251.00  pnl=$-83.50  reason=HARD/RATCHET STOP
+
+==================================================
+  COIN — end of day
+  Trades: 3  |  P&L: $+728.06
+==================================================
+  Strike 1: SHORT  entry=157.14  exit=151.92  pnl=$+829.98  reason=HARD/RATCHET STOP
+  Strike 2: SHORT  entry=152.12  exit=152.62  pnl=$-82.00  reason=HARD/RATCHET STOP
+  Strike 3: SHORT  entry=150.53  exit=150.65  pnl=$-19.92  reason=HARD/RATCHET STOP
+
+==================================================
+  CLSK — end of day
+  Trades: 3  |  P&L: $+873.81
+==================================================
+  Strike 1: SHORT  entry=16.22  exit=16.09  pnl=$+200.33  reason=HARD/RATCHET STOP
+  Strike 2: SHORT  entry=16.02  exit=16.11  pnl=$-66.30  reason=HARD/RATCHET STOP
+  Strike 3: SHORT  entry=15.88  exit=15.41  pnl=$+739.78  reason=HARD/RATCHET STOP

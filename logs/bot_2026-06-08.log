@@ -1,0 +1,75 @@
+11:39:53  INFO     Tiger Sovereign starting — 2026-06-08 11:39 ET
+11:39:53  INFO     Running pre-market scan...
+11:39:54  INFO     Subscribing to bars for: ['QQQ', 'MRVL', 'INTC', 'MU', 'KLAC', 'COIN']
+11:39:54  INFO     Alarm D scope: strike
+11:39:54  INFO     Mid-session start detected — backfilling today's bars (warmup only)...
+11:39:54  INFO     Backfill: fetching today's bars for ['QQQ', 'MRVL', 'INTC', 'MU', 'KLAC', 'COIN'] ...
+11:39:54  INFO     Backfill: QQQ 115 bars; MRVL 115, INTC 115, MU 115, KLAC 115, COIN 115
+11:39:56  INFO     Backfill done [MRVL]: OR locked H=292.44 L=284.60 | warmed 115 1m bars, 22 5m bars
+11:39:56  INFO     Backfill done [INTC]: OR locked H=111.05 L=108.04 | warmed 115 1m bars, 22 5m bars
+11:39:56  INFO     Backfill done [MU]: OR locked H=952.50 L=931.00 | warmed 115 1m bars, 22 5m bars
+11:39:56  INFO     Backfill done [KLAC]: OR locked H=2046.46 L=2003.56 | warmed 115 1m bars, 22 5m bars
+11:39:56  INFO     Backfill done [COIN]: OR locked H=157.71 L=155.00 | warmed 115 1m bars, 22 5m bars
+11:39:56  INFO     BarStream started for ['QQQ', 'MRVL', 'INTC', 'MU', 'KLAC', 'COIN']
+11:39:56  INFO     Streaming live bars — trading new breakouts.
+11:39:56  INFO     started data stream
+11:39:56  INFO     starting data websocket connection
+11:39:56  INFO     connecting to wss://stream.data.alpaca.markets/v2/iex
+11:39:56  INFO     connected to wss://stream.data.alpaca.markets/v2/iex
+11:39:56  INFO     subscribed to bars: ['COIN', 'INTC', 'KLAC', 'MRVL', 'MU', 'QQQ']
+13:17:23  WARNING  data websocket error, restarting connection: no close frame received or sent
+13:17:23  INFO     starting data websocket connection
+13:17:23  INFO     connecting to wss://stream.data.alpaca.markets/v2/iex
+13:17:23  INFO     connected to wss://stream.data.alpaca.markets/v2/iex
+13:17:23  INFO     subscribed to bars: ['COIN', 'INTC', 'KLAC', 'MRVL', 'MU', 'QQQ']
+13:18:38  WARNING  data websocket error, restarting connection: no close frame received or sent
+13:18:38  INFO     starting data websocket connection
+13:18:38  INFO     connecting to wss://stream.data.alpaca.markets/v2/iex
+13:18:38  INFO     connected to wss://stream.data.alpaca.markets/v2/iex
+13:18:38  INFO     subscribed to bars: ['COIN', 'INTC', 'KLAC', 'MRVL', 'MU', 'QQQ']
+13:20:43  WARNING  data websocket error, restarting connection: no close frame received or sent
+13:20:43  INFO     starting data websocket connection
+13:20:43  INFO     connecting to wss://stream.data.alpaca.markets/v2/iex
+13:20:43  INFO     connected to wss://stream.data.alpaca.markets/v2/iex
+13:20:43  INFO     subscribed to bars: ['COIN', 'INTC', 'KLAC', 'MRVL', 'MU', 'QQQ']
+13:21:43  WARNING  data websocket error, restarting connection: no close frame received or sent
+13:21:43  INFO     starting data websocket connection
+13:21:43  INFO     connecting to wss://stream.data.alpaca.markets/v2/iex
+13:21:43  INFO     connected to wss://stream.data.alpaca.markets/v2/iex
+13:21:43  INFO     subscribed to bars: ['COIN', 'INTC', 'KLAC', 'MRVL', 'MU', 'QQQ']
+16:07:31  INFO     Market closed. Shutting down.
+16:07:31  INFO     BarStream stopped.
+16:07:31  INFO     Done.
+[scanner] 2026-06-08 11:39 ET — scanning 113 tickers...
+[scanner] 5 candidate(s):
+
+  MRVL    gap=+14.6%  prev=263.46  pm=301.99  [LONG] | Tango Therapeutics, American Battery Technology, Intel And Other Big S
+  INTC    gap=+12.7%  prev=98.97  pm=111.54  [LONG] | Tango Therapeutics, American Battery Technology, Intel And Other Big S
+  MU      gap=+10.6%  prev=865.00  pm=956.59  [LONG] | Cantor Fitzgerald Maintains Overweight on Micron Technology, Raises Pr
+  KLAC    gap=+9.7%  prev=1929.24  pm=2116.86  [LONG] | Tango Therapeutics, American Battery Technology, Intel And Other Big S
+  COIN    gap=+6.4%  prev=152.43  pm=162.12  [LONG] | Marvell Stock Is Up 230% In 2026 — S&P 500 Debut Could Make That Look 
+
+==================================================
+  MRVL — end of day
+  Trades: 0  |  P&L: $+0.00
+==================================================
+
+==================================================
+  INTC — end of day
+  Trades: 0  |  P&L: $+0.00
+==================================================
+
+==================================================
+  MU — end of day
+  Trades: 0  |  P&L: $+0.00
+==================================================
+
+==================================================
+  KLAC — end of day
+  Trades: 0  |  P&L: $+0.00
+==================================================
+
+==================================================
+  COIN — end of day
+  Trades: 0  |  P&L: $+0.00
+==================================================

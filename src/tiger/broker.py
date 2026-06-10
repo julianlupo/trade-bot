@@ -95,10 +95,20 @@ def cancel_all_orders() -> None:
 
 
 def close_all_positions() -> None:
-    """Liquidate all positions at market — EOD flush."""
+    """Liquidate all positions at market — EOD flush / safety flatten."""
     client = _client()
     client.close_all_positions(cancel_orders=True)
-    log.info("All positions closed (EOD flush).")
+    log.info("All positions closed.")
+
+
+def list_open_positions() -> list[str]:
+    """Return tickers of any currently-open positions (empty if flat)."""
+    client = _client()
+    try:
+        return [p.symbol for p in client.get_all_positions()]
+    except Exception as exc:
+        log.warning("list_open_positions failed: %s", exc)
+        return []
 
 
 # ── position queries ─────────────────────────────────────────────────────────

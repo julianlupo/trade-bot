@@ -147,6 +147,7 @@ def run_backtest(
     ticker: str = "TEST",
     target_date=None,
     alarm_d_scope: str = "session",
+    exit_mode: str = "alarms",
 ) -> SessionResult:
     """Run the strategy on one target day.
 
@@ -207,7 +208,7 @@ def run_backtest(
             exited = _manage_position(
                 state, strike, ts, bar_time, row, close, high, low,
                 prev_close, rsi_1m, adx_5m, recent_adx_1m, new_5m_completed,
-                alarm_d_scope, new_nhod, new_nlod,
+                alarm_d_scope, new_nhod, new_nlod, exit_mode,
             )
             if exited:
                 if risk.circuit_breaker_tripped(state.realized_pnl):
@@ -289,7 +290,8 @@ def _close_position(state, strike, ts, exit_price: Decimal, reason: ExitReason):
 
 def _manage_position(state, strike, ts, bar_time, row, close, high, low,
                      prev_close, rsi_1m, adx_5m, recent_adx_1m, new_5m_completed,
-                     alarm_d_scope="session", new_nhod=False, new_nlod=False) -> bool:
+                     alarm_d_scope="session", new_nhod=False, new_nlod=False,
+                     exit_mode="alarms") -> bool:
     """Run sentinels + stop + EOD flush for the open position. Returns True if exited."""
     d = strike.direction
 
@@ -348,17 +350,20 @@ def _manage_position(state, strike, ts, bar_time, row, close, high, low,
             strike.stop_price = risk.hard_stop_price(d, blended, strike.shares)  # OPEN-Q4: recalc on full
             strike.stop_source = "hard"
 
-    # Ratchet alarms (C, E) — tighten the stop for future bars
-    c = alarms.alarm_c_tiger_grip(recent_adx_1m)
-    e = alarms.alarm_e_divergence(
-        d, close, rsi_1m if rsi_1m is not None else 50.0,
-        state.stored_peak_price, state.stored_peak_rsi,
-    )
-    if c.action is AlarmAction.RATCHET or e.action is AlarmAction.RATCHET:
-        new_stop = risk.ratchet_stop(d, Decimal(str(close)), strike.stop_price)
-        if new_stop != strike.stop_price:
-            strike.stop_price = new_stop
-            strike.stop_source = "ratchet_e" if e.action is AlarmAction.RATCHET else "ratchet_c"
+    # Ratchet alarms (C, E) — tighten the stop for future bars.
+    # ONLY in "alarms" mode. "run" mode skips ratcheting (the documented loss
+    # center) and lets the trade run to its hard stop / alarm B-D / EOD.
+    if exit_mode == "alarms":
+        c = alarms.alarm_c_tiger_grip(recent_adx_1m)
+        e = alarms.alarm_e_divergence(
+            d, close, rsi_1m if rsi_1m is not None else 50.0,
+            state.stored_peak_price, state.stored_peak_rsi,
+        )
+        if c.action is AlarmAction.RATCHET or e.action is AlarmAction.RATCHET:
+            new_stop = risk.ratchet_stop(d, Decimal(str(close)), strike.stop_price)
+            if new_stop != strike.stop_price:
+                strike.stop_price = new_stop
+                strike.stop_source = "ratchet_e" if e.action is AlarmAction.RATCHET else "ratchet_c"
     return False
 
 

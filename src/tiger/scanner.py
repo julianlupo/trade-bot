@@ -65,13 +65,15 @@ class Candidate:
     prev_close: float
     premarket_price: float
     headlines: list[str] = field(default_factory=list)
+    rvol: float | None = None   # relative volume: today's pace vs ~14-day avg
 
     def __str__(self) -> str:
         sign = "+" if self.gap_pct > 0 else ""
-        heds = (" | " + self.headlines[0][:70]) if self.headlines else ""
+        heds = (" | " + self.headlines[0][:60]) if self.headlines else ""
+        rv = f"  rvol={self.rvol:.1f}x" if self.rvol is not None else ""
         return (
             f"{self.ticker:6s}  gap={sign}{self.gap_pct:.1%}  "
-            f"prev={self.prev_close:.2f}  pm={self.premarket_price:.2f}"
+            f"prev={self.prev_close:.2f}  pm={self.premarket_price:.2f}{rv}"
             f"  [{self.direction.upper()}]{heds}"
         )
 
@@ -155,10 +157,66 @@ def find_candidates(
     for c in top_n:
         c.headlines = news_map.get(c.ticker, [])
 
+    # Relative volume ("stocks in play") — the #1 edge driver in the research.
+    # Compute today's volume pace vs the ~14-day average for each candidate.
+    rvol_map = _compute_rvol([c.ticker for c in top_n])
+    for c in top_n:
+        c.rvol = rvol_map.get(c.ticker)
+
+    # Optional rvol gate (off by default). Set RVOL_MIN in .env (e.g. 1.5) to
+    # require candidates trade at >=1.5x their normal pace.
+    rvol_min = float(os.getenv("RVOL_MIN", "0") or 0)
+    if rvol_min > 0:
+        gated = [c for c in top_n if c.rvol is not None and c.rvol >= rvol_min]
+        top_n = gated if gated else top_n  # don't return empty if all filtered
+
     # Prefer candidates with news; fall back to pure gap size if none have news
     with_news = [c for c in top_n if c.headlines]
     ranked = with_news if with_news else top_n
     return ranked[:max_results]
+
+
+def _compute_rvol(tickers: list[str]) -> dict[str, float]:
+    """
+    Relative volume = today's volume so far / (avg daily volume * fraction of
+    the trading day elapsed). ~1 = normal pace, >=2 = trading "in play".
+    """
+    from datetime import datetime, time as dtime, timedelta
+    from alpaca.data.requests import StockBarsRequest
+    from alpaca.data.timeframe import TimeFrame
+
+    data_client, _ = _clients()
+    now = datetime.now(ET)
+    # Fraction of the 6.5h (390 min) regular session elapsed (clamped)
+    open_t = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    elapsed_min = max(1.0, min(390.0, (now - open_t).total_seconds() / 60.0))
+    frac = elapsed_min / 390.0
+
+    out: dict[str, float] = {}
+    try:
+        req = StockBarsRequest(
+            symbol_or_symbols=tickers,
+            timeframe=TimeFrame.Day,
+            start=now - timedelta(days=25),
+            limit=1000,
+        )
+        df = data_client.get_stock_bars(req).df
+        if df.empty:
+            return out
+        df = df.reset_index()
+        for tk in tickers:
+            rows = df[df["symbol"] == tk].sort_values("timestamp")
+            if len(rows) < 2:
+                continue
+            today_vol = float(rows.iloc[-1]["volume"])
+            prior = rows.iloc[:-1]["volume"].tail(14)
+            avg = float(prior.mean()) if len(prior) else 0.0
+            if avg > 0:
+                expected_so_far = avg * frac
+                out[tk] = round(today_vol / expected_so_far, 2) if expected_so_far > 0 else None
+    except Exception:
+        pass
+    return out
 
 
 def run_scan(print_results: bool = True) -> list[Candidate]:

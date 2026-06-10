@@ -27,11 +27,13 @@ def run_weekly() -> dict:
     now = datetime.now(ET)
     result = {"date": now.date().isoformat(), "recorded_at": now.isoformat(), "scopes": {}}
 
-    for scope in ("session", "strike"):
+    # A/B the two exit modes — this is the meaningful comparison now that the
+    # evidence-based "run" variant exists. Keyed "alarms" / "run".
+    for mode in ("alarms", "run"):
         try:
-            br = batch.run_batch(TICKERS, alarm_d_scope=scope)
+            br = batch.run_batch(TICKERS, exit_mode=mode)
             agg = batch.aggregate(br.sessions)
-            result["scopes"][scope] = {
+            result["scopes"][mode] = {
                 "trades": agg["trades"],
                 "win_rate": round(agg["win_rate"], 1),
                 "total_pnl": round(agg["total_pnl"], 2),
@@ -39,7 +41,7 @@ def run_weekly() -> dict:
                 "profit_factor": round(agg["profit_factor"], 2),
             }
         except Exception as exc:
-            result["scopes"][scope] = {"error": str(exc)}
+            result["scopes"][mode] = {"error": str(exc)}
 
     HISTORY_PATH.parent.mkdir(exist_ok=True)
     with open(HISTORY_PATH, "a") as f:
