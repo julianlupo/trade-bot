@@ -35,6 +35,8 @@ logging.basicConfig(
     format="%(asctime)s  %(levelname)-7s  [scheduler] %(message)s",
     datefmt="%H:%M:%S",
 )
+# Log timestamps in ET (the container clock is UTC)
+logging.Formatter.converter = lambda *args: datetime.now(ET).timetuple()
 log = logging.getLogger(__name__)
 
 
@@ -57,15 +59,16 @@ def main() -> None:
         # ── trading window: keep the bot alive ──────────────────────────────
         in_window = is_weekday(now) and BOT_START <= t < BOT_END
         if in_window:
-            if bot is None or bot.poll() is not None:
-                if bot is not None and bot.poll() is not None:
-                    log.warning("Bot exited (code %s).", bot.returncode)
-                    restarts_today += 1
+            # Reap a dead bot exactly once (don't recount the same corpse)
+            if bot is not None and bot.poll() is not None:
+                log.warning("Bot exited (code %s).", bot.returncode)
+                restarts_today += 1
+                bot = None
+            if bot is None:
                 if restarts_today >= MAX_RESTARTS_PER_DAY:
-                    log.error("Bot crashed %d times today — not restarting. "
-                              "EOD safety-flatten will still run.", restarts_today)
+                    pass  # crash cap hit — stay down; EOD flatten still runs
                 else:
-                    log.info("Starting bot (restart #%d today)...", restarts_today)
+                    log.info("Starting bot (attempt #%d today)...", restarts_today + 1)
                     bot = subprocess.Popen([sys.executable, "run.py"])
         else:
             if bot is not None and bot.poll() is None:
