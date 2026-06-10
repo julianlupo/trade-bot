@@ -16,6 +16,18 @@ ROOT = Path(__file__).parent
 
 st.set_page_config(page_title="TIGER SOVEREIGN", page_icon="🐯", layout="wide")
 
+# Simple password gate for the public (Railway) deployment. If DASH_PASSWORD
+# is unset (local use), the dashboard is open.
+import os as _os
+_dash_pw = _os.getenv("DASH_PASSWORD")
+if _dash_pw:
+    if not st.session_state.get("auth_ok"):
+        pw = st.text_input("Password", type="password")
+        if pw == _dash_pw:
+            st.session_state["auth_ok"] = True
+            st.rerun()
+        st.stop()
+
 # ── Futuristic CSS ────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
